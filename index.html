@@ -108,6 +108,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .board.b5 .hd{padding:1.5mm}
 .board .corner{padding:2mm}
 .board .hd .ref{line-height:1}
+.hd .ht .ib{margin-left:0;width:1.05em;height:1.05em;font-size:.8em;vertical-align:.08em}
 .board .hd .ht{hyphens:auto;-webkit-hyphens:auto}
 .board .hd.col,.board .hd.rowh{justify-content:center;align-items:center;text-align:center}
 .board .hd .ht{text-align:center}
@@ -479,7 +480,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610112052';
+const APP_VERSION='202610112053';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -748,9 +749,9 @@ function gameView(){
   if(S.over)h+=resultsView();
   h+=`<div class="board-wrap"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
   h+=`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
-  S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}<span class="ib">i</span></span><span class="ht">${esc(CATS[k].short)}</span></div>`);
+  S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}</span><span class="ht">${esc(CATS[k].short)}&nbsp;<span class="ib">i</span></span></div>`);
   S.rows.forEach((rk,i)=>{
-    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}<span class="ib">i</span></span><span class="ht">${esc(CATS[rk].short)}</span></div>`;
+    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}</span><span class="ht">${esc(CATS[rk].short)}&nbsp;<span class="ib">i</span></span></div>`;
     for(let j=0;j<n;j++){
       const ci=i*n+j,cell=S.cells[ci];
       const ref=colRef(j)+rowRef(i);
