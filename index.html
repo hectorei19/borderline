@@ -108,6 +108,12 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .board.b5 .hd{padding:1.5mm}
 .board .corner{padding:2mm}
 .board .hd .ref{line-height:1}
+/* reference letters sit at a fixed height at the top of every title square, so A, B, C (and 1, 2, 3) always line up */
+.board .hd{position:relative}
+.board .hd .ref{position:absolute;top:2mm;left:0;right:0;text-align:center;font-size:.62rem}
+.board.b5 .hd .ref{top:1.5mm}
+.board .hd.col,.board .hd.rowh{padding-top:calc(2mm + .62rem + 4px)}
+.board.b5 .hd.col,.board.b5 .hd.rowh{padding-top:calc(1.5mm + .62rem + 3px)}
 .hd .ht .ib{margin-left:0;width:1.05em;height:1.05em;font-size:.8em;vertical-align:.08em}
 .board .hd .ht{hyphens:auto;-webkit-hyphens:auto}
 .board .hd.col,.board .hd.rowh{justify-content:center;align-items:center;text-align:center}
@@ -480,7 +486,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610112053';
+const APP_VERSION='202610112055';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -679,7 +685,7 @@ function fitHeaders(){
   const ts=[...document.querySelectorAll('.hd .ht')];if(!ts.length)return;
   ts.forEach(t=>t.style.fontSize='');
   const fits=t=>{const box=t.parentElement,cs=getComputedStyle(box),ref=box.querySelector('.ref');
-    const free=box.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-(ref?ref.offsetHeight+parseFloat(cs.rowGap||0):0);
+    const free=box.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
     return t.scrollHeight<=free+0.5&&t.scrollWidth<=t.clientWidth+0.5};
   const board=document.querySelector('.board'),floor=board&&board.classList.contains('b5')?10:board&&board.classList.contains('b4')?11:12;
   let f=parseFloat(getComputedStyle(ts[0]).fontSize),n=0;
