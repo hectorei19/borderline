@@ -100,6 +100,10 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .userline{display:flex;align-items:center;gap:8px;font-weight:600}
 .userline .ghost{padding:4px 10px;font-size:.85rem}
 .hd.col,.hd.rowh,.corner{aspect-ratio:1;min-width:0;overflow:hidden}
+.hd .ht{font-size:1.05rem;font-weight:700;line-height:1.08;letter-spacing:.005em}
+.b4 .hd .ht{font-size:.95rem}
+.b5 .hd .ht{font-size:.82rem}
+.hd{padding:5px 5px;overflow-wrap:normal;hyphens:manual}
 .hd.col{justify-content:center}
 .b5 .hd{font-size:.6rem;line-height:1.1}
 .corner{border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.62rem;color:var(--ink-2);padding:4px;text-align:center}
@@ -269,7 +273,8 @@ function describe(k){
   if(m=/^Official language: (.+)$/.exec(L))return m[1]+' is one of the official national languages. Widely spoken but unofficial languages do not count.';
   return L+'.';
 }
-CATS.forEach(k=>{k.desc=describe(k)});
+const SHORT={'In North or Central America':'In N. & Central America','Island nation (no land borders)':'Island nation','Has 5+ land neighbours':'5+ neighbours','Exactly 1 land neighbour':'Only 1 neighbour','Centre south of the Equator':'South of the Equator','Centre in the tropics':'In the tropics','Centre north of 45°N':'North of 45°N','Area over 1 million km²':'Over 1M km²','Area under 30,000 km²':'Under 30,000 km²','Population over 100 million':'100M+ people','Name has 5 letters or fewer':'Name ≤ 5 letters','Name has 10+ letters':'Name 10+ letters','Starts and ends with the same letter':'Same first & last letter','Currency called "dollar"':'Uses a dollar','Capital starts with same letter':'Capital, same initial','Capital name has 2+ words':'2-word capital'};
+CATS.forEach(k=>{k.desc=describe(k);k.short=SHORT[k.label]||k.label.replace(/^Official language: /,'Official: ')});
 const POOL = CATS.filter(k=>k.count>=4);
 
 /* ---- seeded rng + generator ---- */
@@ -468,7 +473,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610111646';
+const APP_VERSION='202610111655';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -657,9 +662,15 @@ const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
   app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S?' · ':''):''}${S?esc(S.code)+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(S?gameView():(editingUser?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
-  bind();drawLayer();
+  bind();drawLayer();fitHeaders();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
+// Keep header labels as large as possible: shrink only the ones that would not fit their square.
+function fitHeaders(){
+  document.querySelectorAll('.hd .ht').forEach(t=>{t.style.fontSize='';const box=t.parentElement;let f=parseFloat(getComputedStyle(t).fontSize),n=0;
+    while((box.scrollHeight>box.clientHeight+1||t.scrollWidth>box.clientWidth)&&f>9&&n++<20){f-=.5;t.style.fontSize=f+'px'}});
+}
+addEventListener('resize',()=>{clearTimeout(fitHeaders.t);fitHeaders.t=setTimeout(fitHeaders,120)});
 function onTickVisual(){const left=S.deadline-now();const bar=document.querySelector('.tbar');const sub=document.getElementById('tleft');if(bar)bar.style.width=Math.max(0,left/(S.timer*1000)*100)+'%';if(sub)sub.textContent=Math.max(0,Math.ceil(left/1000))+'s'}
 
 function seg(name,opts,val){return `<div class="seg" role="group">${opts.map(([v,l])=>`<button type="button" data-seg="${name}" data-v="${v}" aria-pressed="${String(v)===String(val)}">${l}</button>`).join('')}</div>`}
@@ -717,9 +728,9 @@ function gameView(){
   if(S.over)h+=resultsView();
   h+=`<div class="board-wrap"><div class="board b${n}" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
   h+=`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
-  S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}<span class="ib">i</span></span>${esc(CATS[k].label)}</div>`);
+  S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}<span class="ib">i</span></span><span class="ht">${esc(CATS[k].short)}</span></div>`);
   S.rows.forEach((rk,i)=>{
-    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}<span class="ib">i</span></span>${esc(CATS[rk].label)}</div>`;
+    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}<span class="ib">i</span></span><span class="ht">${esc(CATS[rk].short)}</span></div>`;
     for(let j=0;j<n;j++){
       const ci=i*n+j,cell=S.cells[ci];
       const ref=colRef(j)+rowRef(i);
