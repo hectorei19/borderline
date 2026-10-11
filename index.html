@@ -144,6 +144,17 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .infobox p{margin:0;font-size:1rem;color:var(--ink)}
 .infobox .meta{font-family:var(--mono);font-size:.75rem;color:var(--ink-2)}
 .infoscrim{position:fixed;inset:0;background:rgba(10,20,30,.45);z-index:30}
+.pts{position:absolute;top:3px;right:3px;font-family:var(--mono);font-size:.62rem;background:rgba(8,16,26,.72);color:#fff;padding:1px 4px;border-radius:3px;line-height:1.2}
+.flagbox{position:relative}
+.cell .val{position:absolute;right:4px;bottom:3px;font-family:var(--mono);font-size:.66rem;color:var(--ink-2)}
+.b5 .cell .val,.b5 .pts{font-size:.55rem}
+.bd{margin:-6px 0 0 38px}.bdline{font-family:var(--mono);font-size:.75rem!important}
+.helpbox{max-height:calc(100% - 48px);overflow-y:auto;top:24px;transform:translateX(-50%)}
+.helpbox h3{font-size:.8rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2);margin:6px 0 0}
+.helpbox ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.ptable{border-collapse:collapse;font-family:var(--mono);font-size:.85rem}
+.ptable td{border-top:1px solid var(--rule);padding:4px 10px 4px 0}
+.helpbtn{background:transparent;border:1px solid var(--rule);border-radius:999px;padding:5px 12px;font-weight:600;font-size:.9rem;white-space:nowrap}
 .toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--sheet);padding:10px 16px;border-radius:5px;font-weight:600;box-shadow:var(--shadow);max-width:calc(100% - 32px);text-align:center}
 .toast.bad{background:var(--bad);color:#fff}
 .toast.good{background:var(--good);color:#fff}
@@ -383,17 +394,27 @@ function checkEnd(){
   if(full||outOfGuesses||allPassed){endGame();return true}
   return false;
 }
-function lineBonus(){
+/* ---- scoring ----
+   square: 10–100 points, more when fewer countries fit it
+   speed:  up to +20 when a turn timer is on, by the share of time left
+   lines:  +50 for every full row or column that is all yours */
+const LINE_BONUS=50,SPEED_MAX=20;
+const cellPts=k=>Math.max(10,Math.min(100,Math.round(110-25*Math.log(Math.max(1,k)))));
+const speedPts=(left,timer)=>timer?Math.max(0,Math.min(SPEED_MAX,Math.round(SPEED_MAX*left/(timer*1000)))):0;
+function lineCounts(){
   const n=S.n,b=S.players.map(()=>0);
   for(let i=0;i<n;i++){
     const row=[...Array(n)].map((_,j)=>S.cells[i*n+j].o),col=[...Array(n)].map((_,j)=>S.cells[j*n+i].o);
-    [row,col].forEach(l=>{if(l[0]>=0&&l.every(x=>x===l[0]))b[l[0]]+=2});
+    [row,col].forEach(l=>{if(l[0]>=0&&l.every(x=>x===l[0]))b[l[0]]++});
   }return b;
 }
 function computeScores(){
-  const lb=lineBonus();
-  S.players.forEach((p,i)=>{p.cells=S.cells.filter(c=>c.o===i).length;p.bonus=S.mode==='solo'?0:lb[i];p.score=p.cells+p.bonus});
+  const lc=lineCounts();
+  S.players.forEach((p,i)=>{const mine=S.cells.filter(c=>c.o===i);
+    p.cells=mine.length;p.base=mine.reduce((a,c)=>a+(c.p||0),0);p.speed=mine.reduce((a,c)=>a+(c.sb||0),0);
+    p.lines=lc[i];p.bonus=lc[i]*LINE_BONUS;p.score=p.base+p.speed+p.bonus});
 }
+function liveScore(i){const lc=lineCounts();return S.cells.filter(c=>c.o===i).reduce((a,c)=>a+(c.p||0)+(c.sb||0),0)+lc[i]*LINE_BONUS}
 function endGame(){
   if(S.mode==='online'){onlineAct('end');return}
   S.over=true;clearInterval(tick);ui.sel=-1;
@@ -407,8 +428,11 @@ function guess(ci,cid){
   const ok=S.answers[ci].includes(c.i);
   const p=S.players[S.turn];
   if(ok){
-    S.cells[ci]={o:S.turn,c:cid};S.used.push(cid);S.passes=0;p.score++;ui.fresh=ci;
-    toast(c.n+' fits.'+(S.mode==='solo'?'':' Point for '+p.name+'.'),'good');
+    const pts=cellPts(S.answers[ci].length),sb=speedPts(S.deadline-now(),S.timer);
+    const before=lineCounts()[S.turn];
+    S.cells[ci]={o:S.turn,c:cid,p:pts,sb};S.used.push(cid);S.passes=0;ui.fresh=ci;
+    const nl=lineCounts()[S.turn]-before;
+    toast(c.n+' fits. +'+pts+(sb?' +'+sb+' speed':'')+(nl?' +'+nl*LINE_BONUS+' line':'')+(S.mode==='solo'?'':' for '+p.name)+'.','good');
   }else{
     S.wrong++;
     toast(c.n+" doesn't fit there."+(S.mode==='solo'?'':' Turn passes.'),'bad');
@@ -436,7 +460,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610111628';
+const APP_VERSION='202610111639';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -520,7 +544,7 @@ function syncRoom(){
   if(!g){toast('This room has a broken grid. Start a rematch.','bad');return}
   const order=r.order||lobbyOrder(r);
   const cellMap=r.cells||{};
-  const cells=g.answers.map((_,i)=>cellMap[i]?{o:cellMap[i].o,c:cellMap[i].c}:{o:-1,c:null});
+  const cells=g.answers.map((_,i)=>cellMap[i]?{o:cellMap[i].o,c:cellMap[i].c,p:cellMap[i].p||0,sb:cellMap[i].sb||0}:{o:-1,c:null});
   S={mode:'online',n,seed:r.seed,code:makeCode(n,r.seed),rows:g.rows,cols:g.cols,answers:g.answers,cells,
      used:cells.filter(c=>c.c).map(c=>c.c),
      players:order.map(pid=>({pid,name:(r.players[pid]||{}).name||'Gone',on:(r.players[pid]||{}).on!==false,score:0})),
@@ -555,7 +579,8 @@ async function onlineGuess(ci,cid){
       if(Object.values(r.cells).some(x=>x.c===cid)){note='used';return}
       const g=roomGrid(r);const ok=g.answers[ci].includes(c.i);
       const nm=(r.players[ME]||{}).name||'Someone';
-      if(ok){r.cells[ci]={o:r.turn||0,c:cid};r.passes=0;r.ev={id:evId(),kind:'good',ci,text:nm+': '+c.n+' fits.'}}
+      if(ok){const pts=cellPts(g.answers[ci].length),sb=speedPts((r.deadline||0)-(Date.now()+offset),r.cfg.timer);
+        r.cells[ci]={o:r.turn||0,c:cid,p:pts,sb};r.passes=0;r.ev={id:evId(),kind:'good',ci,text:nm+': '+c.n+' fits. +'+pts+(sb?' +'+sb+' speed':'')}}
       else{r.wrong=(r.wrong||0)+1;r.ev={id:evId(),kind:'bad',text:nm+': '+c.n+" doesn't fit there."}}
       advance(r,order.length);return r;
     });
@@ -621,7 +646,7 @@ const pinStyle=i=>`background:var(--p${i})`;
 const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
-  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S?' · ':''):''}${S?esc(S.code)+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(S?gameView():(editingUser?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
+  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S?' · ':''):''}${S?esc(S.code)+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(S?gameView():(editingUser?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
   bind();drawLayer();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
@@ -667,17 +692,18 @@ function setupView(){
     <li>Each square needs a country that matches its row <em>and</em> its column.</li>
     <li>Answers can be any of the 250 countries and territories in the list (Greenland, Puerto Rico, Hong Kong…). Each one can only be used once per grid.</li>
     <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
+    <li>Squares are worth 10–100 points (rarer fits are worth more), plus a speed bonus with the timer on and +${LINE_BONUS} for each full row or column. See <b>How to play</b> at the top.</li>
     <li>Every grid can always be completed: whatever answers you give, each empty square still has at least one country left.</li>
-    ${on?'<li>Everyone plays on their own phone. The host creates a room and shares the 4-letter code; up to 4 players join.</li><li>On your turn, pick a square and name a country. Right answer claims it; wrong answer or time out passes the turn.</li><li>1 point per square, +2 for owning a whole row or column.</li>':vs?'<li>Take turns on one phone: pick a square and name a country. Right answer claims the square; wrong answer or time out passes the turn.</li><li>1 point per square, +2 for owning a whole row or column. The game ends when the grid is full or everyone passes in a row.</li>':'<li>You get a few more guesses than squares. Wrong answers and time-outs use one up.</li>'}
+    ${on?'<li>Everyone plays on their own phone. The host creates a room and shares the 4-letter code; up to 4 players join.</li><li>On your turn, pick a square and name a country. Right answer claims it; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':vs?'<li>Take turns on one phone: pick a square and name a country. Right answer claims the square; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':'<li>You get a few more guesses than squares. Wrong answers and time-outs use one up.</li>'}
   </ul></section>`;
 }
 function gameView(){
   const n=S.n;let h='';
   if(!S.over){
     const p=S.players[S.turn];
-    h+=`<div class="status"><span class="pin" style="${S.mode==='solo'?'background:var(--sea)':pinStyle(S.turn)}"></span><span class="who">${S.mode==='solo'?esc(S.players[0].name)+"'s grid":S.mode==='online'?(S.turn===S.me?'Your turn':'Waiting for '+esc(p.name)):esc(p.name)+"'s turn"}</span><span class="sub">${S.mode==='solo'?S.guesses+' guesses left':''}${S.timer?` <span id="tleft">${S.timer}s</span>`:''}</span>${S.timer?'<span class="tbar" style="width:100%"></span>':''}</div>`;
+    h+=`<div class="status"><span class="pin" style="${S.mode==='solo'?'background:var(--sea)':pinStyle(S.turn)}"></span><span class="who">${S.mode==='solo'?esc(S.players[0].name)+"'s grid":S.mode==='online'?(S.turn===S.me?'Your turn':'Waiting for '+esc(p.name)):esc(p.name)+"'s turn"}</span><span class="sub">${S.mode==='solo'?liveScore(0)+' pts · '+S.guesses+' guesses':''}${S.timer?` <span id="tleft">${S.timer}s</span>`:''}</span>${S.timer?'<span class="tbar" style="width:100%"></span>':''}</div>`;
   }
-  if(S.mode!=='solo')h+=`<div class="scores">${S.players.map((p,i)=>`<span class="chip ${!S.over&&i===S.turn?'on':''} ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)} <b>${S.over?p.score:S.cells.filter(c=>c.o===i).length}</b></span>`).join('')}</div>`;
+  if(S.mode!=='solo')h+=`<div class="scores">${S.players.map((p,i)=>`<span class="chip ${!S.over&&i===S.turn?'on':''} ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)} <b>${S.over?p.score:liveScore(i)}</b></span>`).join('')}</div>`;
   if(S.over)h+=resultsView();
   h+=`<div class="board-wrap"><div class="board b${n}" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
   h+=`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
@@ -688,10 +714,10 @@ function gameView(){
       const ci=i*n+j,cell=S.cells[ci];
       const ref=colRef(j)+rowRef(i);
       if(cell.o>=0){const c=byCode[cell.c];
-        h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="nm">${esc(c.n)}${S.over?`<span class="cnt">/${S.answers[ci].length}</span>`:''}</span></span></button>`;
+        h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span><span class="nm">${esc(c.n)}${S.over?`<span class="cnt">/${S.answers[ci].length}</span>`:''}</span></span></button>`;
       }else if(S.over){
         h+=`<button class="cell miss" data-cell="${ci}" aria-label="${ref}: show answers"><span class="nm">${S.answers[ci].length} possible</span></button>`;
-      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}"><span class="plus"></span></button>`;
+      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}, worth ${cellPts(S.answers[ci].length)} points"><span class="plus"></span><span class="val">${cellPts(S.answers[ci].length)}</span></button>`;
     }
   });
   h+=`</div></div>`;
@@ -703,16 +729,17 @@ function gameView(){
 function shareText(){
   const n=S.n;let g='';
   for(let i=0;i<n;i++){for(let j=0;j<n;j++){const o=S.cells[i*n+j].o;g+=o<0?'⬜':(S.mode==='solo'?'🟩':['🟥','🟦','🟨','🟪'][o])}g+='\n'}
-  const head=S.mode==='solo'?`Borderline ${S.code} — ${S.players[0].cells}/${n*n}`:`Borderline ${S.code} — `+S.players.map(p=>p.name+' '+p.score).join(', ');
+  const head=S.mode==='solo'?`Borderline ${S.code} — ${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:`Borderline ${S.code} — `+S.players.map(p=>p.name+' '+p.score).join(', ');
   return head+'\n'+g.trim();
 }
+function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
-    return `<section class="panel"><p class="big">${p.cells} of ${n*n} squares</p><p class="hint">${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share the code <b>${S.code}</b> so friends can try the same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Copy result</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
+    return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share the code <b>${S.code}</b> so friends can try the same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Copy result</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
   const top=ranked[0].score,winners=ranked.filter(p=>p.score===top);
   return `<section class="panel"><p class="big">${winners.length>1?'Draw at '+top+' points':esc(winners[0].name)+' wins'}</p>
-   <div class="podium">${ranked.map((p,r)=>`<div class="place ${p.score===top?'win':''}"><span class="rk">${r+1}</span><span class="pin" style="${pinStyle(p.i)}"></span><span class="nm">${esc(p.name)}</span><span class="pt">${p.cells} sq${p.bonus?` +${p.bonus} lines`:''} = ${p.score}</span></div>`).join('')}</div>
+   <div class="podium">${ranked.map((p,r)=>`<div class="place ${p.score===top?'win':''}"><span class="rk">${r+1}</span><span class="pin" style="${pinStyle(p.i)}"></span><span class="nm">${esc(p.name)}</span><span class="pt">${p.score}</span></div><div class="bd">${breakdown(p)}</div>`).join('')}</div>
    <pre class="sharebox" id="share">${esc(shareText())}</pre>
    <div class="row-btns"><button class="ghost" id="copy">Copy result</button>${S.mode==='online'&&!S.host?'':'<button class="primary" id="again" style="flex:1">Rematch, new grid</button>'}</div>
    ${S.mode==='online'?(S.host?'':'<p class="hint">The host can start a rematch.</p>')+'<button class="ghost" id="newg">Leave room</button>':'<button class="ghost" id="newg">Change settings</button>'}</section>`;
@@ -742,11 +769,34 @@ function drawLayer(){
       <ul class="sugg" id="sugg">${sugg(res)}</ul>
       <div class="bar"><button class="ghost" id="cancel">Back to grid</button></div></div>`;
   }
+  if(ui.help){
+    const ex=[2,3,5,10,20,40].map(k=>`<tr><td>${k} countries fit</td><td>${cellPts(k)} pts</td></tr>`).join('');
+    h+=`<div class="infoscrim" id="helpscrim"></div><div class="infobox helpbox" role="dialog" aria-modal="true" aria-labelledby="helpt">
+      <h2 id="helpt">How to play</h2>
+      <h3>The grid</h3><ul>
+      <li>Each square needs a country or territory that matches its row <b>and</b> its column. 250 are accepted, including territories like Greenland or Hong Kong.</li>
+      <li>Each country can be used only once per grid.</li>
+      <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
+      <li>Every grid can always be completed: whatever answers are given, each empty square keeps at least one country that still fits.</li></ul>
+      <h3>Modes</h3><ul>
+      <li><b>Solo</b>: you get a few more guesses than squares. Wrong answers and time-outs use one up.</li>
+      <li><b>Same phone</b>: 2–4 players pass one phone round.</li>
+      <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
+      <li>In Same phone and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
+      <h3>Scoring</h3><ul>
+      <li><b>Square points</b>: 10 to 100. The fewer countries fit a square, the more it is worth. The number in the corner of an empty square is its value.</li>
+      <li><b>Speed bonus</b>: with a turn timer, up to +${SPEED_MAX} for answering quickly (all of it with the full time left, none at the last second).</li>
+      <li><b>Line bonus</b>: +${LINE_BONUS} for each full row or column where every square is yours.</li>
+      <li>Wrong answers cost no points. Highest total wins.</li></ul>
+      <table class="ptable">${ex}</table>
+      <button class="primary" id="helpok">Got it</button></div>`}
   if(ui.info!=null&&CATS[ui.info]){const k=CATS[ui.info];
     h+=`<div class="infoscrim" id="infoscrim"></div><div class="infobox" role="dialog" aria-modal="true" aria-labelledby="infot"><span class="label">Category</span><h2 id="infot">${esc(k.label)}</h2><p>${esc(k.desc)}</p><span class="meta">${k.count} countries in the game match this on its own.</span><button class="primary" id="infook">Got it</button></div>`}
   if(ui.toast)h+=`<div class="toast ${ui.toast.kind||''}" role="status">${esc(ui.toast.msg)}</div>`;
   const had=document.getElementById('gq');const caret=had?had.selectionStart:null;
   layer.innerHTML=h;
+  const hk=document.getElementById('helpok');
+  if(hk){const close=()=>{ui.help=false;drawLayer()};hk.onclick=close;document.getElementById('helpscrim').onclick=close}
   const ok=document.getElementById('infook');
   if(ok){const close=()=>{ui.info=null;drawLayer()};ok.onclick=close;document.getElementById('infoscrim').onclick=close;ok.focus()}
   layer.querySelectorAll('[data-info]').forEach(b=>b.onclick=e=>{e.preventDefault();ui.info=+b.dataset.info;drawLayer()});
@@ -781,6 +831,7 @@ function bind(){
   if($('pass'))$('pass').onclick=pass;
   if($('giveup'))$('giveup').onclick=()=>{const b=$('giveup');if(b.dataset.armed){endGame()}else{b.dataset.armed='1';b.textContent='Tap again to confirm'}};
   if($('create'))$('create').onclick=createRoom;
+  if($('help'))$('help').onclick=()=>{ui.help=true;drawLayer()};
   if($('reload'))$('reload').onclick=()=>{location.replace(location.pathname+'?v='+Date.now()+(roomCode?'&room='+roomCode:''))};
   if($('jcode'))$('jcode').oninput=e=>{setup.join=e.target.value};
   if($('jcode'))$('jcode').onkeydown=e=>{if(e.key==='Enter')joinRoom($('jcode').value)};
