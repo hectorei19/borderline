@@ -363,6 +363,7 @@ function startGame(){
 function startTurn(first){
   if(!S||S.over)return;
   if(S.mode==='online'){ensureTick();return}
+  S.turnStart=now();
   S.deadline=S.timer?now()+S.timer*1000:0;
   clearInterval(tick);
   if(S.timer)tick=setInterval(onTick,250);
@@ -395,20 +396,19 @@ function checkEnd(){
   return false;
 }
 /* ---- scoring ----
-   square: every square is worth up to 100. Its valid answers are ranked from most obvious
-           (largest area) to most obscure (smallest); the most obvious scores 50, the most obscure 100,
-           the rest are spread evenly in between
-   speed:  up to +20 when a turn timer is on, by the share of time left
+   square: difficulty from 0 to 100, prorated inside each grid by its number of possible answers:
+           the square with the fewest options is worth 100, the one with the most is worth 0,
+           the others in proportion (if all squares have the same count, all are worth 100)
+   speed:  +2 for every whole second left (the turn timer, or a 30-second window when the timer is off)
    lines:  +50 for every full row or column that is all yours */
-const LINE_BONUS=50,SPEED_MAX=20;
-const SQ_MIN=50,SQ_MAX=100;
-function squarePts(ans,ci){
-  if(ans.length<2)return SQ_MAX;
-  const order=ans.slice().sort((a,b)=>C[b].a-C[a].a||C[a].n.localeCompare(C[b].n));
-  const r=order.indexOf(ci);if(r<0)return 0;
-  return Math.round(SQ_MIN+(SQ_MAX-SQ_MIN)*r/(ans.length-1));
+const LINE_BONUS=50,SQ_MAX=100,SPEED_PER_SEC=2,SPEED_WINDOW=30;
+function cellValues(answers){
+  const ks=answers.map(a=>a.length),lo=Math.min(...ks),hi=Math.max(...ks);
+  return ks.map(k=>hi===lo?SQ_MAX:Math.round(SQ_MAX*(hi-k)/(hi-lo)));
 }
-const speedPts=(left,timer)=>timer?Math.max(0,Math.min(SPEED_MAX,Math.round(SPEED_MAX*left/(timer*1000)))):0;
+const valCache=new WeakMap();
+function valuesFor(answers){if(!valCache.has(answers))valCache.set(answers,cellValues(answers));return valCache.get(answers)}
+function speedPts(elapsedMs,timer){const win=timer||SPEED_WINDOW;return SPEED_PER_SEC*Math.max(0,Math.floor(win-elapsedMs/1000))}
 function lineCounts(){
   const n=S.n,b=S.players.map(()=>0);
   for(let i=0;i<n;i++){
@@ -436,7 +436,7 @@ function guess(ci,cid){
   const ok=S.answers[ci].includes(c.i);
   const p=S.players[S.turn];
   if(ok){
-    const pts=squarePts(S.answers[ci],c.i),sb=speedPts(S.deadline-now(),S.timer);
+    const pts=valuesFor(S.answers)[ci],sb=speedPts(now()-(S.turnStart||now()),S.timer);
     const before=lineCounts()[S.turn];
     S.cells[ci]={o:S.turn,c:cid,p:pts,sb};S.used.push(cid);S.passes=0;ui.fresh=ci;
     const nl=lineCounts()[S.turn]-before;
@@ -468,7 +468,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610111642';
+const APP_VERSION='202610111646';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -556,7 +556,7 @@ function syncRoom(){
   S={mode:'online',n,seed:r.seed,code:makeCode(n,r.seed),rows:g.rows,cols:g.cols,answers:g.answers,cells,
      used:cells.filter(c=>c.c).map(c=>c.c),
      players:order.map(pid=>({pid,name:(r.players[pid]||{}).name||'Gone',on:(r.players[pid]||{}).on!==false,score:0})),
-     turn:r.turn||0,timer:r.cfg.timer,deadline:r.deadline||0,passes:r.passes||0,over:r.status==='over',wrong:r.wrong||0,
+     turn:r.turn||0,timer:r.cfg.timer,deadline:r.deadline||0,turnStart:r.started||0,passes:r.passes||0,over:r.status==='over',wrong:r.wrong||0,
      me:order.indexOf(ME),host:r.host===ME};
   if(S.over){computeScores();clearInterval(tick)}
   if(r.ev&&r.ev.id!==seenEv){
@@ -573,6 +573,7 @@ function advance(r,len){
   const filled=Object.keys(r.cells||{}).length;
   if(filled>=r.cfg.n*r.cfg.n||(r.passes||0)>=len){r.status='over';r.deadline=0;return}
   r.turn=((r.turn||0)+1)%len;
+  r.started=Date.now()+offset;
   r.deadline=r.cfg.timer?Date.now()+offset+r.cfg.timer*1000:0;
 }
 async function onlineGuess(ci,cid){
@@ -587,7 +588,7 @@ async function onlineGuess(ci,cid){
       if(Object.values(r.cells).some(x=>x.c===cid)){note='used';return}
       const g=roomGrid(r);const ok=g.answers[ci].includes(c.i);
       const nm=(r.players[ME]||{}).name||'Someone';
-      if(ok){const pts=squarePts(g.answers[ci],c.i),sb=speedPts((r.deadline||0)-(Date.now()+offset),r.cfg.timer);
+      if(ok){const pts=valuesFor(g.answers)[ci],sb=speedPts(Date.now()+offset-(r.started||Date.now()+offset),r.cfg.timer);
         r.cells[ci]={o:r.turn||0,c:cid,p:pts,sb};r.passes=0;r.ev={id:evId(),kind:'good',ci,text:nm+': '+c.n+' fits. +'+pts+(sb?' +'+sb+' speed':'')}}
       else{r.wrong=(r.wrong||0)+1;r.ev={id:evId(),kind:'bad',text:nm+': '+c.n+" doesn't fit there."}}
       advance(r,order.length);return r;
@@ -606,6 +607,7 @@ async function onlineAct(kind){
       const order=kind==='start'?lobbyOrder(r):(r.order||lobbyOrder(r)).filter(pid=>r.players[pid]);
       if(order.length<2)return;
       r.order=order;r.seed=freshSeed(r.cfg.n);{const gg=gridFor(r.cfg.n,r.seed);r.rows=gg.rows;r.cols=gg.cols}r.v=APP_VERSION;r.cells=null;r.passes=0;r.wrong=0;r.turn=0;r.status='playing';
+      r.started=Date.now()+offset;
       r.deadline=r.cfg.timer?Date.now()+offset+r.cfg.timer*1000:0;
       r.ev={id:evId(),kind:'',text:kind==='start'?'Game on. '+(r.players[order[0]].name)+' starts.':'Rematch. New grid.'};return r}
     if(kind==='lobby'){if(r.host!==ME)return;r.status='lobby';r.cells=null;r.order=null;r.seed=null;r.deadline=0;return r}
@@ -700,7 +702,7 @@ function setupView(){
     <li>Each square needs a country that matches its row <em>and</em> its column.</li>
     <li>Answers can be any of the 250 countries and territories in the list (Greenland, Puerto Rico, Hong Kong…). Each one can only be used once per grid.</li>
     <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
-    <li>Every square is worth up to ${SQ_MAX} points: obvious answers give ${SQ_MIN}, obscure ones up to ${SQ_MAX}, plus a speed bonus with the timer on and +${LINE_BONUS} for each full row or column. See <b>How to play</b> at the top.</li>
+    <li>Score = square difficulty (0–${SQ_MAX}, harder squares are worth more) + ${SPEED_PER_SEC} per second left + ${LINE_BONUS} per full row or column. See <b>How to play</b> at the top.</li>
     <li>Every grid can always be completed: whatever answers you give, each empty square still has at least one country left.</li>
     ${on?'<li>Everyone plays on their own phone. The host creates a room and shares the 4-letter code; up to 4 players join.</li><li>On your turn, pick a square and name a country. Right answer claims it; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':vs?'<li>Take turns on one phone: pick a square and name a country. Right answer claims the square; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':'<li>You get a few more guesses than squares. Wrong answers and time-outs use one up.</li>'}
   </ul></section>`;
@@ -725,7 +727,7 @@ function gameView(){
         h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span><span class="nm">${esc(c.n)}${S.over?`<span class="cnt">/${S.answers[ci].length}</span>`:''}</span></span></button>`;
       }else if(S.over){
         h+=`<button class="cell miss" data-cell="${ci}" aria-label="${ref}: show answers"><span class="nm">${S.answers[ci].length} possible</span></button>`;
-      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}"><span class="plus"></span></button>`;
+      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}, worth ${valuesFor(S.answers)[ci]} points"><span class="plus"></span><span class="val">${valuesFor(S.answers)[ci]}</span></button>`;
     }
   });
   h+=`</div></div>`;
@@ -778,8 +780,8 @@ function drawLayer(){
       <div class="bar"><button class="ghost" id="cancel">Back to grid</button></div></div>`;
   }
   if(ui.help){
-    const exAns=C.filter(c=>c.b.includes('FRA')).map(c=>c.i);
-    const ex=exAns.slice().sort((a,b)=>C[b].a-C[a].a).map(i=>`<tr><td>${esc(C[i].n)}</td><td>${squarePts(exAns,i)} pts</td></tr>`).join('');
+    const ks=[2,4,8,16,30],ev=cellValues(ks.map(k=>Array(k).fill(0)));
+    const ex=ks.map((k,i)=>`<tr><td>${k} possible countries</td><td>${ev[i]} pts</td></tr>`).join('');
     h+=`<div class="infoscrim" id="helpscrim"></div><div class="infobox helpbox" role="dialog" aria-modal="true" aria-labelledby="helpt">
       <h2 id="helpt">How to play</h2>
       <h3>The grid</h3><ul>
@@ -793,11 +795,11 @@ function drawLayer(){
       <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
       <li>In Same phone and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
       <h3>Scoring</h3><ul>
-      <li><b>Square points</b>: every square is worth up to ${SQ_MAX}. The countries that fit it are ranked from the most obvious (largest) to the most obscure (smallest): the most obvious gives ${SQ_MIN}, the most obscure ${SQ_MAX}, and the rest are spread evenly in between. So the same square rewards a clever pick.</li>
-      <li><b>Speed bonus</b>: with a turn timer, up to +${SPEED_MAX} for answering quickly (all of it with the full time left, none at the last second).</li>
+      <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: worked out inside each grid from how many countries fit each square. The square with the fewest options is worth ${SQ_MAX}, the one with the most options is worth 0, and every other square sits in proportion. The number in the corner of an empty square is its value.</li>
+      <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your turn when you answer. With the timer off, it counts down from ${SPEED_WINDOW} seconds.</li>
       <li><b>Line bonus</b>: +${LINE_BONUS} for each full row or column where every square is yours.</li>
       <li>Wrong answers cost no points. Highest total wins.</li></ul>
-      <h3>Example: a square "Borders France"</h3>
+      <h3>Example: a grid whose squares have 2 to 30 options</h3>
       <table class="ptable">${ex}</table>
       <button class="primary" id="helpok">Got it</button></div>`}
   if(ui.info!=null&&CATS[ui.info]){const k=CATS[ui.info];
