@@ -108,15 +108,12 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .board.b5 .hd{padding:1.5mm}
 .board .corner{padding:2mm}
 .board .hd .ref{line-height:1}
-/* reference letters sit at a fixed height at the top of every title square, so A, B, C (and 1, 2, 3) always line up */
-.board .hd{position:relative}
-.board .hd .ref{position:absolute;top:2mm;left:0;right:0;text-align:center;font-size:.62rem}
-.board.b5 .hd .ref{top:1.5mm}
-.board .hd.col,.board .hd.rowh{padding-top:calc(2mm + .62rem + 4px)}
-.board.b5 .hd.col,.board.b5 .hd.rowh{padding-top:calc(1.5mm + .62rem + 3px)}
+/* letter and title travel together (no gap); all squares of the same header line share one top offset,
+   so A, B, C (and 1, 2, 3) sit at the same height. The offset is set in fitHeaders(). */
+.board .hd.col,.board .hd.rowh{justify-content:flex-start;gap:1px}
 .hd .ht .ib{margin-left:0;width:1.05em;height:1.05em;font-size:.8em;vertical-align:.08em}
 .board .hd .ht{hyphens:auto;-webkit-hyphens:auto}
-.board .hd.col,.board .hd.rowh{justify-content:center;align-items:center;text-align:center}
+.board .hd.col,.board .hd.rowh{align-items:center;text-align:center}
 .board .hd .ht{text-align:center}
 .b5 .hd{font-size:.6rem;line-height:1.1}
 .corner{border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.62rem;color:var(--ink-2);padding:4px;text-align:center}
@@ -486,7 +483,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610112055';
+const APP_VERSION='202610112056';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -681,17 +678,30 @@ function render(){
 // Keep header labels as large as possible: shrink only the ones that would not fit their square.
 // One text size for all category titles in a grid (the largest that lets every title fit inside
 // its square with its margin), then shrink individually only if a title still does not fit.
+// the info icon is glued to the last word so it can never wrap onto a line of its own
+function titleWithInfo(t){const i=t.lastIndexOf(' ');const head=i<0?'':t.slice(0,i+1),last=i<0?t:t.slice(i+1);
+  return esc(head)+'<span style="white-space:nowrap">'+esc(last)+'&nbsp;<span class="ib">i</span></span>'}
 function fitHeaders(){
   const ts=[...document.querySelectorAll('.hd .ht')];if(!ts.length)return;
   ts.forEach(t=>t.style.fontSize='');
   const fits=t=>{const box=t.parentElement,cs=getComputedStyle(box),ref=box.querySelector('.ref');
-    const free=box.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+    const free=box.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-(ref?ref.offsetHeight+1:0);
     return t.scrollHeight<=free+0.5&&t.scrollWidth<=t.clientWidth+0.5};
   const board=document.querySelector('.board'),floor=board&&board.classList.contains('b5')?10:board&&board.classList.contains('b4')?11:12;
   let f=parseFloat(getComputedStyle(ts[0]).fontSize),n=0;
   const setAll=v=>ts.forEach(t=>t.style.fontSize=v+'px');
   while(ts.some(t=>!fits(t))&&f>floor&&n++<40){f-=.5;setAll(f)}
   ts.forEach(t=>{let g=f,m=0;while(!fits(t)&&g>7&&m++<30){g-=.5;t.style.fontSize=g+'px'}});
+  // shared top offset per header line: centre the tallest block, start every other block at the same height
+  ['.hd.col','.hd.rowh'].forEach(sel=>{
+    const hs=[...document.querySelectorAll(sel)];if(!hs.length)return;
+    hs.forEach(h=>h.style.paddingTop='');
+    const cs=getComputedStyle(hs[0]),pt=parseFloat(cs.paddingTop),pb=parseFloat(cs.paddingBottom);
+    const inner=hs[0].clientHeight-pt-pb;
+    const tall=Math.max(...hs.map(h=>{const r=h.querySelector('.ref'),t=h.querySelector('.ht');return (r?r.offsetHeight+1:0)+(t?t.offsetHeight:0)}));
+    const off=Math.max(0,(inner-tall)/2);
+    hs.forEach(h=>h.style.paddingTop=(pt+off)+'px');
+  });
   const cb=document.querySelector('.cbrand');
   if(cb){cb.style.fontSize='';const box=cb.parentElement;let h=parseFloat(getComputedStyle(cb).fontSize),k=0;
     while(cb.scrollWidth>box.clientWidth-parseFloat(getComputedStyle(box).paddingLeft)*2&&h>8&&k++<40){h-=.5;cb.style.fontSize=h+'px'}}
@@ -755,9 +765,9 @@ function gameView(){
   if(S.over)h+=resultsView();
   h+=`<div class="board-wrap"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
   h+=`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
-  S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}</span><span class="ht">${esc(CATS[k].short)}&nbsp;<span class="ib">i</span></span></div>`);
+  S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}</span><span class="ht">${titleWithInfo(CATS[k].short)}</span></div>`);
   S.rows.forEach((rk,i)=>{
-    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}</span><span class="ht">${esc(CATS[rk].short)}&nbsp;<span class="ib">i</span></span></div>`;
+    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}</span><span class="ht">${titleWithInfo(CATS[rk].short)}</span></div>`;
     for(let j=0;j<n;j++){
       const ci=i*n+j,cell=S.cells[ci];
       const ref=colRef(j)+rowRef(i);
