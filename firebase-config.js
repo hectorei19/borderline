@@ -1,12 +1,10 @@
-// Paste here the firebaseConfig object from Firebase console:
-// Project settings → General → Your apps → Web app → "SDK setup and configuration" → Config.
-// These values are not secret: they only identify your Firebase project.
+// Firebase web config for the Borderline project (not secret: access is controlled by database rules).
 window.FIREBASE_CONFIG = {
-  apiKey: "PASTE_HERE",
-  authDomain: "PASTE_HERE",
-  databaseURL: "PASTE_HERE",   // must look like https://xxxx-default-rtdb.europe-west1.firebasedatabase.app
-  projectId: "PASTE_HERE",
-  storageBucket: "PASTE_HERE",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE"
+  apiKey: "AIzaSyBSHPqTRcuA3orK4W5LKbRNTNij48a4hdQ",
+  authDomain: "borderline-90920.firebaseapp.com",
+  databaseURL: "https://borderline-90920-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "borderline-90920",
+  storageBucket: "borderline-90920.firebasestorage.app",
+  messagingSenderId: "934438573870",
+  appId: "1:934438573870:web:3461a8b859b9267187ccbf"
 };
