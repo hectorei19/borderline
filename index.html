@@ -101,17 +101,18 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .userline .ghost{padding:4px 10px;font-size:.85rem}
 .hd.col,.hd.rowh,.corner{aspect-ratio:1;min-width:0;overflow:hidden}
 .hd .ht{display:block;max-width:100%;font-size:1.05rem;font-weight:700;line-height:1.08;letter-spacing:.005em}
-.b4 .hd .ht{font-size:.95rem}
-.b5 .hd .ht{font-size:.82rem}
+.b4 .hd .ht{font-size:1rem}
+.b5 .hd .ht{font-size:.95rem}
 .hd{overflow-wrap:normal;hyphens:manual}
 .board .hd,.board.b4 .hd,.board.b5 .hd{padding:2mm}
-.board.b5 .hd{padding:1.5mm}
+.board.b5 .hd{padding:1.2mm}
+.board.b5 .hd .ref{font-size:.58rem}
 .board .corner{padding:2mm}
 .board .hd .ref{line-height:1}
 /* letter and title travel together (no gap); all squares of the same header line share one top offset,
    so A, B, C (and 1, 2, 3) sit at the same height. The offset is set in fitHeaders(). */
 .board .hd.col,.board .hd.rowh{justify-content:flex-start;gap:1px}
-.hd .ht .ib{margin-left:0;width:1.05em;height:1.05em;font-size:.8em;vertical-align:.08em}
+.hd .ht .ib{display:inline-block;margin-left:0;width:1.05em;height:1.05em;line-height:.95em;text-align:center;font-size:.8em;vertical-align:.08em;white-space:nowrap}
 .board .hd .ht{hyphens:auto;-webkit-hyphens:auto}
 .board .hd.col,.board .hd.rowh{align-items:center;text-align:center}
 .board .hd .ht{text-align:center}
@@ -283,7 +284,7 @@ function describe(k){
   if(m=/^Official language: (.+)$/.exec(L))return m[1]+' is one of the official national languages. Widely spoken but unofficial languages do not count.';
   return L+'.';
 }
-const SHORT={'In North or Central America':'In N. & Central America','Island nation (no land borders)':'Island nation','Has 5+ land neighbours':'5+ neighbours','Exactly 1 land neighbour':'Only 1 neighbour','Centre south of the Equator':'South of the Equator','Centre in the tropics':'In the tropics','Centre north of 45°N':'North of 45°N','Area over 1 million km²':'Over 1M km²','Area under 30,000 km²':'Under 30,000 km²','Population over 100 million':'100M+ people','Name has 5 letters or fewer':'Name ≤ 5 letters','Name has 10+ letters':'Name 10+ letters','Starts and ends with the same letter':'Same first & last letter','Currency called "dollar"':'Uses a dollar','Capital starts with same letter':'Capital, same initial','Capital name has 2+ words':'2-word capital'};
+const SHORT={'Landlocked':'Land\u00ADlocked','Has 5+ land neighbours':'5+ neigh\u00ADbours','Exactly 1 land neighbour':'Only 1 neigh\u00ADbour','In North or Central America':'In N. & Central America','Island nation (no land borders)':'Island nation','Centre south of the Equator':'South of the Equator','Centre in the tropics':'In the tropics','Centre north of 45°N':'North of 45°N','Area over 1 million km²':'Over 1M km²','Area under 30,000 km²':'Under 30,000 km²','Population over 100 million':'100M+ people','Name has 5 letters or fewer':'Name ≤ 5 letters','Name has 10+ letters':'Name 10+ letters','Starts and ends with the same letter':'Same first & last letter','Currency called "dollar"':'Uses a dollar','Capital starts with same letter':'Capital, same initial','Capital name has 2+ words':'2-word capital'};
 CATS.forEach(k=>{k.desc=describe(k);k.short=SHORT[k.label]||k.label.replace(/^Official language: /,'Official: ')});
 const POOL = CATS.filter(k=>k.count>=4);
 
@@ -411,15 +412,17 @@ function checkEnd(){
   return false;
 }
 /* ---- scoring ----
-   square: difficulty from 0 to 100, prorated inside each grid by its number of possible answers:
-           the square with the fewest options is worth 100, the one with the most is worth 0,
-           the others in proportion (if all squares have the same count, all are worth 100)
+   square: difficulty from 0 to 100 by ranking inside each grid: squares are sorted by how many
+           countries fit them and get evenly spaced points, 100 for the fewest options, 0 for the most
    speed:  +2 for every whole second left (the turn timer, or a 30-second window when the timer is off)
    lines:  +50 for every full row or column that is all yours */
 const LINE_BONUS=50,SQ_MAX=100,SPEED_PER_SEC=2,SPEED_WINDOW=30;
 function cellValues(answers){
-  const ks=answers.map(a=>a.length),lo=Math.min(...ks),hi=Math.max(...ks);
-  return ks.map(k=>hi===lo?SQ_MAX:Math.round(SQ_MAX*(hi-k)/(hi-lo)));
+  // ranking: sort squares from fewest to most options and give them evenly spaced points,
+  // 100 for the hardest down to 0 for the easiest; squares with the same count share their average place
+  const ks=answers.map(a=>a.length),N=ks.length,sorted=[...ks].sort((x,y)=>x-y);
+  if(N<2||sorted[0]===sorted[N-1])return ks.map(()=>SQ_MAX);
+  return ks.map(k=>{const f=sorted.indexOf(k),l=sorted.lastIndexOf(k);return Math.round(SQ_MAX*(N-1-(f+l)/2)/(N-1))});
 }
 const valCache=new WeakMap();
 function valuesFor(answers){if(!valCache.has(answers))valCache.set(answers,cellValues(answers));return valCache.get(answers)}
@@ -483,7 +486,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610112121';
+const APP_VERSION='202610112129';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -679,15 +682,17 @@ function render(){
 // One text size for all category titles in a grid (the largest that lets every title fit inside
 // its square with its margin), then shrink individually only if a title still does not fit.
 // the info icon is glued to the last word so it can never wrap onto a line of its own
-function titleWithInfo(t){const i=t.lastIndexOf(' ');const head=i<0?'':t.slice(0,i+1),last=i<0?t:t.slice(i+1);
-  return esc(head)+'<span style="white-space:nowrap">'+esc(last)+'&nbsp;<span class="ib">i</span></span>'}
+function titleWithInfo(t){
+  const i=t.lastIndexOf(' '),head=i<0?'':t.slice(0,i+1),last=i<0?t:t.slice(i+1),icon='\u00A0<span class="ib">i</span>';
+  // short last words are glued to the icon; long ones (which may need hyphenating) are left free
+  return last.replace(/\u00AD/g,'').length<=7?esc(head)+'<span style="white-space:nowrap">'+esc(last)+icon+'</span>':esc(t)+icon}
 function fitHeaders(){
   const ts=[...document.querySelectorAll('.hd .ht')];if(!ts.length)return;
   ts.forEach(t=>t.style.fontSize='');
   const fits=t=>{const box=t.parentElement,cs=getComputedStyle(box),ref=box.querySelector('.ref');
     const free=box.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-(ref?ref.offsetHeight+1:0);
     return t.scrollHeight<=free+0.5&&t.scrollWidth<=t.clientWidth+0.5};
-  const board=document.querySelector('.board'),floor=board&&board.classList.contains('b5')?10:board&&board.classList.contains('b4')?11:12;
+  const board=document.querySelector('.board'),floor=board&&board.classList.contains('b5')?11:board&&board.classList.contains('b4')?12:13;
   let f=parseFloat(getComputedStyle(ts[0]).fontSize),n=0;
   const setAll=v=>ts.forEach(t=>t.style.fontSize=v+'px');
   while(ts.some(t=>!fits(t))&&f>floor&&n++<40){f-=.5;setAll(f)}
@@ -750,7 +755,7 @@ function setupView(){
     <li>Each square needs a country that matches its row <em>and</em> its column.</li>
     <li>Answers can be any of the 250 countries and territories in the list (Greenland, Puerto Rico, Hong Kong…). Each one can only be used once per grid.</li>
     <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
-    <li>Score = square difficulty (0–${SQ_MAX}, harder squares are worth more) + ${SPEED_PER_SEC} per second left + ${LINE_BONUS} per full row or column. See <b>How to play</b> at the top.</li>
+    <li>Score = square difficulty (0–${SQ_MAX}, ranked inside each grid: the hardest square is worth the most) + ${SPEED_PER_SEC} per second left + ${LINE_BONUS} per full row or column. See <b>How to play</b> at the top.</li>
     <li>Every grid can always be completed: whatever answers you give, each empty square still has at least one country left.</li>
     ${on?'<li>Everyone plays on their own phone. The host creates a room and shares the 4-letter code; up to 4 players join.</li><li>On your turn, pick a square and name a country. Right answer claims it; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':vs?'<li>Take turns on one phone: pick a square and name a country. Right answer claims the square; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':'<li>You get a few more guesses than squares. Wrong answers and time-outs use one up.</li>'}
   </ul></section>`;
@@ -828,8 +833,8 @@ function drawLayer(){
       <div class="bar"><button class="ghost" id="cancel">Back to grid</button></div></div>`;
   }
   if(ui.help){
-    const ks=[2,4,8,16,30],ev=cellValues(ks.map(k=>Array(k).fill(0)));
-    const ex=ks.map((k,i)=>`<tr><td>${k} possible countries</td><td>${ev[i]} pts</td></tr>`).join('');
+    const ks=[2,3,4,5,6,7,8,9,40],ev=cellValues(ks.map(k=>Array(k).fill(0)));
+    const ex=ks.map((k,i)=>`<tr><td>${i+1}.</td><td>${k} possible countries</td><td>${ev[i]} pts</td></tr>`).join('');
     h+=`<div class="infoscrim" id="helpscrim"></div><div class="infobox helpbox" role="dialog" aria-modal="true" aria-labelledby="helpt">
       <h2 id="helpt">How to play</h2>
       <h3>The grid</h3><ul>
@@ -843,11 +848,11 @@ function drawLayer(){
       <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
       <li>In Same phone and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
       <h3>Scoring</h3><ul>
-      <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: worked out inside each grid from how many countries fit each square. The square with the fewest options is worth ${SQ_MAX}, the one with the most options is worth 0, and every other square sits in proportion. A square's points stay hidden until someone answers it correctly.</li>
+      <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: when the grid is made, its squares are ranked from hardest (fewest countries fit) to easiest (most countries fit). The points are spread in equal steps along that ranking: the hardest square is worth ${SQ_MAX}, the easiest 0. Squares with the same number of options share a place and are worth the same. Any correct answer in a square gets that square's points, and they stay hidden until someone answers it.</li>
       <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your turn when you answer. With the timer off, it counts down from ${SPEED_WINDOW} seconds.</li>
       <li><b>Line bonus</b>: +${LINE_BONUS} for each full row or column where every square is yours.</li>
       <li>Wrong answers cost no points. Highest total wins.</li></ul>
-      <h3>Example: a grid whose squares have 2 to 30 options</h3>
+      <h3>Example: the 9 squares of a 3 × 3 grid, ranked</h3>
       <table class="ptable">${ex}</table>
       <button class="primary" id="helpok">Got it</button></div>`}
   if(ui.info!=null&&CATS[ui.info]){const k=CATS[ui.info];
