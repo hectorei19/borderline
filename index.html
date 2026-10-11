@@ -104,7 +104,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .b4 .hd .ht{font-size:.95rem}
 .b5 .hd .ht{font-size:.82rem}
 .hd{padding:5px 5px;overflow-wrap:normal;hyphens:manual}
-.hd.col{justify-content:center}
+.hd.col,.hd.rowh{justify-content:flex-start}
 .b5 .hd{font-size:.6rem;line-height:1.1}
 .corner{border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.62rem;color:var(--ink-2);padding:4px;text-align:center}
 .cell{aspect-ratio:1;border:0;border-left:1px dashed var(--rule);border-top:1px dashed var(--rule);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px;position:relative;min-width:0}
@@ -473,7 +473,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610111655';
+const APP_VERSION='202610111658';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
