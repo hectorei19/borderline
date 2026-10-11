@@ -100,11 +100,13 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .userline{display:flex;align-items:center;gap:8px;font-weight:600}
 .userline .ghost{padding:4px 10px;font-size:.85rem}
 .hd.col,.hd.rowh,.corner{aspect-ratio:1;min-width:0;overflow:hidden}
-.hd .ht{font-size:1.05rem;font-weight:700;line-height:1.08;letter-spacing:.005em}
+.hd .ht{display:block;max-width:100%;font-size:1.05rem;font-weight:700;line-height:1.08;letter-spacing:.005em}
 .b4 .hd .ht{font-size:.95rem}
 .b5 .hd .ht{font-size:.82rem}
 .hd{overflow-wrap:normal;hyphens:manual}
 .board .hd,.board.b4 .hd,.board.b5 .hd{padding:calc(1mm + 3px)}
+.board .corner{padding:calc(1mm + 3px)}
+.board .hd .ht{hyphens:auto;-webkit-hyphens:auto}
 .hd.col,.hd.rowh{justify-content:flex-start}
 .b5 .hd{font-size:.6rem;line-height:1.1}
 .corner{border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.62rem;color:var(--ink-2);padding:4px;text-align:center}
@@ -474,7 +476,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610111700';
+const APP_VERSION='202610111703';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -667,10 +669,24 @@ function render(){
   if(S&&!S.over&&S.timer)onTickVisual();
 }
 // Keep header labels as large as possible: shrink only the ones that would not fit their square.
+// One text size for all category titles in a grid (the largest that lets every title fit inside
+// its square with its margin), then shrink individually only if a title still does not fit.
 function fitHeaders(){
-  document.querySelectorAll('.hd .ht').forEach(t=>{t.style.fontSize='';const box=t.parentElement;let f=parseFloat(getComputedStyle(t).fontSize),n=0;
-    while((box.scrollHeight>box.clientHeight+1||t.scrollWidth>box.clientWidth)&&f>9&&n++<20){f-=.5;t.style.fontSize=f+'px'}});
+  const ts=[...document.querySelectorAll('.hd .ht')];if(!ts.length)return;
+  ts.forEach(t=>t.style.fontSize='');
+  const fits=t=>{const box=t.parentElement,cs=getComputedStyle(box),ref=box.querySelector('.ref');
+    const free=box.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-(ref?ref.offsetHeight+parseFloat(cs.rowGap||0):0);
+    return t.scrollHeight<=free+0.5&&t.scrollWidth<=t.clientWidth+0.5};
+  const board=document.querySelector('.board'),floor=board&&board.classList.contains('b5')?10:board&&board.classList.contains('b4')?11:12;
+  let f=parseFloat(getComputedStyle(ts[0]).fontSize),n=0;
+  const setAll=v=>ts.forEach(t=>t.style.fontSize=v+'px');
+  while(ts.some(t=>!fits(t))&&f>floor&&n++<40){f-=.5;setAll(f)}
+  ts.forEach(t=>{let g=f,m=0;while(!fits(t)&&g>7&&m++<30){g-=.5;t.style.fontSize=g+'px'}});
+  const cb=document.querySelector('.cbrand');
+  if(cb){cb.style.fontSize='';const box=cb.parentElement;let h=parseFloat(getComputedStyle(cb).fontSize),k=0;
+    while(cb.scrollWidth>box.clientWidth-parseFloat(getComputedStyle(box).paddingLeft)*2&&h>8&&k++<40){h-=.5;cb.style.fontSize=h+'px'}}
 }
+try{document.fonts&&document.fonts.ready.then(()=>fitHeaders())}catch(e){}
 addEventListener('resize',()=>{clearTimeout(fitHeaders.t);fitHeaders.t=setTimeout(fitHeaders,120)});
 function onTickVisual(){const left=S.deadline-now();const bar=document.querySelector('.tbar');const sub=document.getElementById('tleft');if(bar)bar.style.width=Math.max(0,left/(S.timer*1000)*100)+'%';if(sub)sub.textContent=Math.max(0,Math.ceil(left/1000))+'s'}
 
@@ -727,7 +743,7 @@ function gameView(){
   }
   if(S.mode!=='solo')h+=`<div class="scores">${S.players.map((p,i)=>`<span class="chip ${!S.over&&i===S.turn?'on':''} ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)} <b>${S.over?p.score:liveScore(i)}</b></span>`).join('')}</div>`;
   if(S.over)h+=resultsView();
-  h+=`<div class="board-wrap"><div class="board b${n}" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
+  h+=`<div class="board-wrap"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
   h+=`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
   S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}<span class="ib">i</span></span><span class="ht">${esc(CATS[k].short)}</span></div>`);
   S.rows.forEach((rk,i)=>{
@@ -739,7 +755,7 @@ function gameView(){
         h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span><span class="nm">${esc(c.n)}${S.over?`<span class="cnt">/${S.answers[ci].length}</span>`:''}</span></span></button>`;
       }else if(S.over){
         h+=`<button class="cell miss" data-cell="${ci}" aria-label="${ref}: show answers"><span class="nm">${S.answers[ci].length} possible</span></button>`;
-      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}, worth ${valuesFor(S.answers)[ci]} points"><span class="plus"></span><span class="val">${valuesFor(S.answers)[ci]}</span></button>`;
+      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}"><span class="plus"></span></button>`;
     }
   });
   h+=`</div></div>`;
@@ -807,7 +823,7 @@ function drawLayer(){
       <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
       <li>In Same phone and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
       <h3>Scoring</h3><ul>
-      <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: worked out inside each grid from how many countries fit each square. The square with the fewest options is worth ${SQ_MAX}, the one with the most options is worth 0, and every other square sits in proportion. The number in the corner of an empty square is its value.</li>
+      <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: worked out inside each grid from how many countries fit each square. The square with the fewest options is worth ${SQ_MAX}, the one with the most options is worth 0, and every other square sits in proportion. A square's points stay hidden until someone answers it correctly.</li>
       <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your turn when you answer. With the timer off, it counts down from ${SPEED_WINDOW} seconds.</li>
       <li><b>Line bonus</b>: +${LINE_BONUS} for each full row or column where every square is yours.</li>
       <li>Wrong answers cost no points. Highest total wins.</li></ul>
