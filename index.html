@@ -354,7 +354,7 @@ function pass(){if(S.over)return;if(S.mode==='online'){ui.sel=-1;onlineAct('pass
 
 
 /* ---- online (Firebase Realtime Database) ---- */
-const FB_OK = typeof firebase!=='undefined' && !!(window.FIREBASE_CONFIG&&FIREBASE_CONFIG.databaseURL);
+const FB_OK = typeof firebase!=='undefined' && !!(window.FIREBASE_CONFIG&&/^https:\/\//.test(FIREBASE_CONFIG.databaseURL||''));
 let db=null, room=null, roomRef=null, roomCode=null, seenEv=null, firstSync=true, joining=false;
 const ansCache={};
 let ME='';
