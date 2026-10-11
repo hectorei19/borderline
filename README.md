@@ -1,6 +1,6 @@
 # Borderline
 
-Geography grid game: name a country that matches each row and column.
+Geography grid game: name a country or territory that matches each row and column (250 to choose from). Every grid is checked so it can always be completed, whatever answers are given.
 Solo, pass-and-play on one phone, or online rooms (up to 4 phones) via Firebase Realtime Database.
 
 Files:
