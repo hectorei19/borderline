@@ -395,11 +395,19 @@ function checkEnd(){
   return false;
 }
 /* ---- scoring ----
-   square: 10–100 points, more when fewer countries fit it
+   square: every square is worth up to 100. Its valid answers are ranked from most obvious
+           (largest area) to most obscure (smallest); the most obvious scores 50, the most obscure 100,
+           the rest are spread evenly in between
    speed:  up to +20 when a turn timer is on, by the share of time left
    lines:  +50 for every full row or column that is all yours */
 const LINE_BONUS=50,SPEED_MAX=20;
-const cellPts=k=>Math.max(10,Math.min(100,Math.round(110-25*Math.log(Math.max(1,k)))));
+const SQ_MIN=50,SQ_MAX=100;
+function squarePts(ans,ci){
+  if(ans.length<2)return SQ_MAX;
+  const order=ans.slice().sort((a,b)=>C[b].a-C[a].a||C[a].n.localeCompare(C[b].n));
+  const r=order.indexOf(ci);if(r<0)return 0;
+  return Math.round(SQ_MIN+(SQ_MAX-SQ_MIN)*r/(ans.length-1));
+}
 const speedPts=(left,timer)=>timer?Math.max(0,Math.min(SPEED_MAX,Math.round(SPEED_MAX*left/(timer*1000)))):0;
 function lineCounts(){
   const n=S.n,b=S.players.map(()=>0);
@@ -428,7 +436,7 @@ function guess(ci,cid){
   const ok=S.answers[ci].includes(c.i);
   const p=S.players[S.turn];
   if(ok){
-    const pts=cellPts(S.answers[ci].length),sb=speedPts(S.deadline-now(),S.timer);
+    const pts=squarePts(S.answers[ci],c.i),sb=speedPts(S.deadline-now(),S.timer);
     const before=lineCounts()[S.turn];
     S.cells[ci]={o:S.turn,c:cid,p:pts,sb};S.used.push(cid);S.passes=0;ui.fresh=ci;
     const nl=lineCounts()[S.turn]-before;
@@ -460,7 +468,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610111639';
+const APP_VERSION='202610111642';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -579,7 +587,7 @@ async function onlineGuess(ci,cid){
       if(Object.values(r.cells).some(x=>x.c===cid)){note='used';return}
       const g=roomGrid(r);const ok=g.answers[ci].includes(c.i);
       const nm=(r.players[ME]||{}).name||'Someone';
-      if(ok){const pts=cellPts(g.answers[ci].length),sb=speedPts((r.deadline||0)-(Date.now()+offset),r.cfg.timer);
+      if(ok){const pts=squarePts(g.answers[ci],c.i),sb=speedPts((r.deadline||0)-(Date.now()+offset),r.cfg.timer);
         r.cells[ci]={o:r.turn||0,c:cid,p:pts,sb};r.passes=0;r.ev={id:evId(),kind:'good',ci,text:nm+': '+c.n+' fits. +'+pts+(sb?' +'+sb+' speed':'')}}
       else{r.wrong=(r.wrong||0)+1;r.ev={id:evId(),kind:'bad',text:nm+': '+c.n+" doesn't fit there."}}
       advance(r,order.length);return r;
@@ -692,7 +700,7 @@ function setupView(){
     <li>Each square needs a country that matches its row <em>and</em> its column.</li>
     <li>Answers can be any of the 250 countries and territories in the list (Greenland, Puerto Rico, Hong Kong…). Each one can only be used once per grid.</li>
     <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
-    <li>Squares are worth 10–100 points (rarer fits are worth more), plus a speed bonus with the timer on and +${LINE_BONUS} for each full row or column. See <b>How to play</b> at the top.</li>
+    <li>Every square is worth up to ${SQ_MAX} points: obvious answers give ${SQ_MIN}, obscure ones up to ${SQ_MAX}, plus a speed bonus with the timer on and +${LINE_BONUS} for each full row or column. See <b>How to play</b> at the top.</li>
     <li>Every grid can always be completed: whatever answers you give, each empty square still has at least one country left.</li>
     ${on?'<li>Everyone plays on their own phone. The host creates a room and shares the 4-letter code; up to 4 players join.</li><li>On your turn, pick a square and name a country. Right answer claims it; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':vs?'<li>Take turns on one phone: pick a square and name a country. Right answer claims the square; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':'<li>You get a few more guesses than squares. Wrong answers and time-outs use one up.</li>'}
   </ul></section>`;
@@ -717,7 +725,7 @@ function gameView(){
         h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span><span class="nm">${esc(c.n)}${S.over?`<span class="cnt">/${S.answers[ci].length}</span>`:''}</span></span></button>`;
       }else if(S.over){
         h+=`<button class="cell miss" data-cell="${ci}" aria-label="${ref}: show answers"><span class="nm">${S.answers[ci].length} possible</span></button>`;
-      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}, worth ${cellPts(S.answers[ci].length)} points"><span class="plus"></span><span class="val">${cellPts(S.answers[ci].length)}</span></button>`;
+      }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}"><span class="plus"></span></button>`;
     }
   });
   h+=`</div></div>`;
@@ -770,7 +778,8 @@ function drawLayer(){
       <div class="bar"><button class="ghost" id="cancel">Back to grid</button></div></div>`;
   }
   if(ui.help){
-    const ex=[2,3,5,10,20,40].map(k=>`<tr><td>${k} countries fit</td><td>${cellPts(k)} pts</td></tr>`).join('');
+    const exAns=C.filter(c=>c.b.includes('FRA')).map(c=>c.i);
+    const ex=exAns.slice().sort((a,b)=>C[b].a-C[a].a).map(i=>`<tr><td>${esc(C[i].n)}</td><td>${squarePts(exAns,i)} pts</td></tr>`).join('');
     h+=`<div class="infoscrim" id="helpscrim"></div><div class="infobox helpbox" role="dialog" aria-modal="true" aria-labelledby="helpt">
       <h2 id="helpt">How to play</h2>
       <h3>The grid</h3><ul>
@@ -784,10 +793,11 @@ function drawLayer(){
       <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
       <li>In Same phone and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
       <h3>Scoring</h3><ul>
-      <li><b>Square points</b>: 10 to 100. The fewer countries fit a square, the more it is worth. The number in the corner of an empty square is its value.</li>
+      <li><b>Square points</b>: every square is worth up to ${SQ_MAX}. The countries that fit it are ranked from the most obvious (largest) to the most obscure (smallest): the most obvious gives ${SQ_MIN}, the most obscure ${SQ_MAX}, and the rest are spread evenly in between. So the same square rewards a clever pick.</li>
       <li><b>Speed bonus</b>: with a turn timer, up to +${SPEED_MAX} for answering quickly (all of it with the full time left, none at the last second).</li>
       <li><b>Line bonus</b>: +${LINE_BONUS} for each full row or column where every square is yours.</li>
       <li>Wrong answers cost no points. Highest total wins.</li></ul>
+      <h3>Example: a square "Borders France"</h3>
       <table class="ptable">${ex}</table>
       <button class="primary" id="helpok">Got it</button></div>`}
   if(ui.info!=null&&CATS[ui.info]){const k=CATS[ui.info];
