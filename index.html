@@ -575,7 +575,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122014';
+const APP_VERSION='202610122019';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -804,6 +804,7 @@ try{document.fonts&&document.fonts.ready.then(()=>fitHeaders())}catch(e){}
 addEventListener('resize',()=>{clearTimeout(fitHeaders.t);fitHeaders.t=setTimeout(fitHeaders,120)});
 function onTickVisual(){const left=S.deadline-now();const bar=document.querySelector('.tbar');const sub=document.getElementById('tleft');if(bar)bar.style.width=Math.max(0,left/(S.timer*1000)*100)+'%';if(sub)sub.textContent=Math.max(0,Math.ceil(left/1000))+'s'}
 
+const MHINT={solo:'1 player.',versus:'2–4 players sharing one phone.',online:'2–4 players, each on their own phone.'};
 const DLABEL={easy:'Easy',normal:'Normal',hard:'Hard'};
 const DHINT={
   easy:'For everyone. Well-known topics, lots of possible answers.',
@@ -840,7 +841,7 @@ function setupView(){
   const vs=setup.mode==='versus',on=setup.mode==='online';
   return `<section class="panel">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
-    <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Same phone'],['online','Online']],setup.mode)}</div>
+    <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Pass & play'],['online','Online']],setup.mode)}<p class="hint">${MHINT[setup.mode]}</p></div>
     <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}</p></div>
     <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>
     ${vs?`<div class="field"><span class="label">Number of players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
@@ -967,9 +968,9 @@ function drawLayer(){
       <li>On every level the grid can always be completed. The grid code shows the level: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
       <h3>Modes</h3><ul>
       <li><b>Solo</b>: you get a few more guesses than squares. Wrong answers and time-outs use one up.</li>
-      <li><b>Same phone</b>: 2–4 players pass one phone round.</li>
+      <li><b>Pass &amp; play</b>: 2–4 players share one phone and pass it round.</li>
       <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
-      <li>In Same phone and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
+      <li>In Pass &amp; play and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
       <h3>Scoring</h3><ul>
       <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: when the grid is made, its squares are ranked from hardest (fewest countries fit) to easiest (most countries fit). The points are spread in equal steps along that ranking: the hardest square is worth ${SQ_MAX}, the easiest 0. Squares with the same number of options share a place and are worth the same. Any correct answer in a square gets that square's points, and they stay hidden until someone answers it.</li>
       <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your turn when you answer. With the timer off, it counts down from ${SPEED_WINDOW} seconds.</li>
