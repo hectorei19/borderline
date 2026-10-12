@@ -11,6 +11,7 @@ Files:
 ## Credits
 
 - Country data: [mledoze/countries](https://github.com/mledoze/countries) (npm `world-countries`), Open Database License (ODbL) 1.0. Adapted: some names shortened; a few borders, official languages, currencies and capitals corrected; Antarctica removed; "drives on the left" and "over 100 million people" lists added by hand.
+- Flag colours (measured, then checked by eye), flag symbols, seas, peaks, memberships, monarchies and sport lists: compiled by hand, correct as of October 2026.
 - Flags: [flag-icons](https://github.com/lipis/flag-icons), MIT License.
 - Fonts: Big Shoulders Display, Barlow Semi Condensed, JetBrains Mono (Google Fonts, SIL Open Font License).
 - Online rooms: Firebase Realtime Database.
