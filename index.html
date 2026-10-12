@@ -575,7 +575,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122008';
+const APP_VERSION='202610122011';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -806,9 +806,9 @@ function onTickVisual(){const left=S.deadline-now();const bar=document.querySele
 
 const DLABEL={easy:'Easy',normal:'Normal',hard:'Hard'};
 const DHINT={
-  easy:'Familiar topics only: continents, languages, currencies, flag colours and big sporting events. Every square has at least 5 countries that fit, so there is always an answer most people know.',
-  normal:'Every topic, including borders, seas, capitals and politics. Some squares have only 2 or 3 answers.',
-  hard:'Every topic, with the tricky ones (borders, seas, politics, sport) coming up more often. Most squares have only a handful of answers, sometimes a small island or territory.'};
+  easy:'Well-known topics. Lots of possible answers.',
+  normal:'All topics. Some squares are tricky.',
+  hard:'Tricky topics. Few possible answers.'};
 const DEXAMPLE={
   easy:'"In Europe" × "Uses the euro", "Flag has a star" × "In Africa"',
   normal:'"Landlocked" × "Name starts with B", "Coast on the Mediterranean" × "Flag has green"',
@@ -841,7 +841,7 @@ function setupView(){
   return `<section class="panel">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Same phone'],['online','Online']],setup.mode)}</div>
-    <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}<br><span style="font-style:italic">Example: ${DEXAMPLE[setup.diff||'normal']}</span></p></div>
+    <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}</p></div>
     <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>
     ${vs?`<div class="field"><span class="label">Number of players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
     <div class="field"><span class="label">Time per turn</span>${seg('timer',[[0,'Off'],[10,'10 s'],[20,'20 s'],[30,'30 s']],setup.timer)}</div>
