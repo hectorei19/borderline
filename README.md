@@ -8,4 +8,9 @@ Files:
 - `firebase-config.js` – your Firebase web config (paste it in).
 - `database.rules.json` – rules to paste in Firebase → Realtime Database → Rules.
 
-Flags: flag-icons (MIT). Country data: world-countries (ODbL).
+## Credits
+
+- Country data: [mledoze/countries](https://github.com/mledoze/countries) (npm `world-countries`), Open Database License (ODbL) 1.0. Adapted: some names shortened, Zimbabwe's currency list corrected, "drives on the left" and "over 100 million people" lists added by hand.
+- Flags: [flag-icons](https://github.com/lipis/flag-icons), MIT License.
+- Fonts: Big Shoulders Display, Barlow Semi Condensed, JetBrains Mono (Google Fonts, SIL Open Font License).
+- Online rooms: Firebase Realtime Database.

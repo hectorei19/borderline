@@ -170,6 +170,12 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .ptable{border-collapse:collapse;font-family:var(--mono);font-size:.85rem}
 .ptable td{border-top:1px solid var(--rule);padding:4px 10px 4px 0}
 .helpbtn{background:transparent;border:1px solid var(--rule);border-radius:999px;padding:5px 12px;font-weight:600;font-size:.9rem;white-space:nowrap}
+.foot{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:0 28px;display:flex;justify-content:center}
+.linkbtn{background:transparent;border:0;color:var(--ink-2);font-size:.85rem;text-decoration:underline;text-underline-offset:3px;padding:6px}
+.credits dl{margin:0;display:flex;flex-direction:column;gap:10px}
+.credits dt{font-weight:700}
+.credits dd{margin:2px 0 0;color:var(--ink-2);font-size:.92rem}
+.credits a{color:var(--sea)}
 .toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--sheet);padding:10px 16px;border-radius:5px;font-weight:600;box-shadow:var(--shadow);max-width:calc(100% - 32px);text-align:center}
 .toast.bad{background:var(--bad);color:#fff}
 .toast.good{background:var(--good);color:#fff}
@@ -202,6 +208,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 </head>
 <body>
 <div class="wrap" id="app"></div>
+<footer class="foot"><button class="linkbtn" id="creditsbtn">Credits &amp; data sources</button></footer>
 <div id="layer"></div>
 
 <script>
@@ -486,7 +493,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610112129';
+const APP_VERSION='202610121929';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -832,6 +839,23 @@ function drawLayer(){
       <ul class="sugg" id="sugg">${sugg(res)}</ul>
       <div class="bar"><button class="ghost" id="cancel">Back to grid</button></div></div>`;
   }
+  if(ui.credits){
+    h+=`<div class="infoscrim" id="credscrim"></div><div class="infobox helpbox credits" role="dialog" aria-modal="true" aria-labelledby="credt">
+      <h2 id="credt">Credits</h2>
+      <p>Borderline is a free, independent geography game. It is not affiliated with any other grid or geography game.</p>
+      <dl>
+        <dt>Country data</dt>
+        <dd><a href="https://github.com/mledoze/countries" target="_blank" rel="noopener">mledoze/countries</a> (package <i>world-countries</i>): names, borders, regions, area, coordinates, languages, currencies and capitals. Made available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License (ODbL) 1.0</a>. Adapted for this game: some country names shortened, Zimbabwe's currency list corrected, and the "drives on the left" and "over 100 million people" lists added by hand.</dd>
+        <dt>Flags</dt>
+        <dd><a href="https://github.com/lipis/flag-icons" target="_blank" rel="noopener">flag-icons</a> by Panayiotis Lipiridis, under the <a href="https://github.com/lipis/flag-icons/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.</dd>
+        <dt>Fonts</dt>
+        <dd>Big Shoulders Display, Barlow Semi Condensed and JetBrains Mono, from <a href="https://fonts.google.com" target="_blank" rel="noopener">Google Fonts</a>, under the SIL Open Font License.</dd>
+        <dt>Online play</dt>
+        <dd>Rooms run on <a href="https://firebase.google.com" target="_blank" rel="noopener">Firebase Realtime Database</a>. Only room codes, player names and moves are stored.</dd>
+        <dt>Accuracy</dt>
+        <dd>Borders, languages and currencies change and can be disputed. The game follows the data above; if an answer looks wrong, tap the category's <span class="ib">i</span> to see the exact rule used.</dd>
+      </dl>
+      <button class="primary" id="credok">Close</button></div>`}
   if(ui.help){
     const ks=[2,3,4,5,6,7,8,9,40],ev=cellValues(ks.map(k=>Array(k).fill(0)));
     const ex=ks.map((k,i)=>`<tr><td>${i+1}.</td><td>${k} possible countries</td><td>${ev[i]} pts</td></tr>`).join('');
@@ -854,12 +878,15 @@ function drawLayer(){
       <li>Wrong answers cost no points. Highest total wins.</li></ul>
       <h3>Example: the 9 squares of a 3 × 3 grid, ranked</h3>
       <table class="ptable">${ex}</table>
+      <p class="hint">Data sources and licences: see <b>Credits &amp; data sources</b> at the bottom of the page.</p>
       <button class="primary" id="helpok">Got it</button></div>`}
   if(ui.info!=null&&CATS[ui.info]){const k=CATS[ui.info];
     h+=`<div class="infoscrim" id="infoscrim"></div><div class="infobox" role="dialog" aria-modal="true" aria-labelledby="infot"><span class="label">Category</span><h2 id="infot">${esc(k.label)}</h2><p>${esc(k.desc)}</p><span class="meta">${k.count} countries in the game match this on its own.</span><button class="primary" id="infook">Got it</button></div>`}
   if(ui.toast)h+=`<div class="toast ${ui.toast.kind||''}" role="status">${esc(ui.toast.msg)}</div>`;
   const had=document.getElementById('gq');const caret=had?had.selectionStart:null;
   layer.innerHTML=h;
+  const ck=document.getElementById('credok');
+  if(ck){const close=()=>{ui.credits=false;drawLayer()};ck.onclick=close;document.getElementById('credscrim').onclick=close}
   const hk=document.getElementById('helpok');
   if(hk){const close=()=>{ui.help=false;drawLayer()};hk.onclick=close;document.getElementById('helpscrim').onclick=close}
   const ok=document.getElementById('infook');
@@ -932,6 +959,7 @@ function start(data){
     if(saved&&initFB()){listenRoom(saved)}}
   render();
 }
+document.getElementById('creditsbtn').onclick=()=>{ui.credits=true;drawLayer()};
 window.claude?.hot?.snapshot?.(()=>({S,setup}));
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 </script>
