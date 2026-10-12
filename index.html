@@ -396,7 +396,8 @@ function famOK(list){const f={};for(const k of list){f[k.fam]=(f[k.fam]||0)+1;if
 // pick a family first, then a category inside it, so every theme (flags, seas, sport, borders...) gets a fair share
 const RARE=new Set(['sea','border','sport','geo2','pol']);
 const FAMCACHE={};
-function famsFor(){if(!FAMCACHE[DIFF]){const pool=DIFF==='easy'?POOL.filter(k=>EASY_LABELS.has(k.label)):POOL;const f={};pool.forEach(k=>(f[k.fam]=f[k.fam]||[]).push(k));FAMCACHE[DIFF]={fams:Object.values(f),rare:pool.filter(k=>RARE.has(k.fam))}}return FAMCACHE[DIFF]}
+// "Name starts with…" squares are trivial with the search box, so they only appear in Easy
+function famsFor(){if(!FAMCACHE[DIFF]){const pool=DIFF==='easy'?POOL.filter(k=>EASY_LABELS.has(k.label)):POOL.filter(k=>!/^Name starts with/.test(k.label));const f={};pool.forEach(k=>(f[k.fam]=f[k.fam]||[]).push(k));FAMCACHE[DIFF]={fams:Object.values(f),rare:pool.filter(k=>RARE.has(k.fam))}}return FAMCACHE[DIFF]}
 function pickCat(r){const F=famsFor().fams;const f=F[Math.floor(r()*F.length)];return f[Math.floor(r()*f.length)]}
 function searchGrid(n,r,restarts){
   for(let rs=0;rs<restarts;rs++){
@@ -589,7 +590,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122030';
+const APP_VERSION='202610122035';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -929,10 +930,13 @@ function answersView(){
 }
 
 /* ---- guess sheet ---- */
+// Easy: names that start with or contain what you typed, with flags.
+// Normal and Hard: only names that start with what you typed, and no flags, so the list gives less away.
 function matches(q){
   const k=N(q);if(!k)return[];
+  const easy=S&&S.diff==='easy';
   const starts=[],inside=[];
-  for(const c of C){if(c.ak.some(a=>a.startsWith(k))||c.k.startsWith(k))starts.push(c);else if(c.k.includes(k))inside.push(c)}
+  for(const c of C){if(c.ak.some(a=>a.startsWith(k))||c.k.startsWith(k))starts.push(c);else if(easy&&c.k.includes(k))inside.push(c)}
   return starts.concat(inside).slice(0,8);
 }
 function drawLayer(){
@@ -986,6 +990,7 @@ function drawLayer(){
       <li><b>Easy</b>: ${DHINT.easy} <i>Example: ${DEXAMPLE.easy}.</i></li>
       <li><b>Normal</b>: ${DHINT.normal} <i>Example: ${DEXAMPLE.normal}.</i></li>
       <li><b>Hard</b>: ${DHINT.hard} <i>Example: ${DEXAMPLE.hard}.</i></li>
+      <li>In Normal and Hard, the country list shows no flags and only names that start with what you type. "Name starts with…" categories only appear in Easy.</li>
       <li>On every level the grid can always be completed. The grid code shows the level: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
       <h3>Modes</h3><ul>
       <li><b>Solo</b>: you get a few more guesses than squares. Wrong answers and time-outs use one up.</li>
@@ -1023,7 +1028,7 @@ function drawLayer(){
   }
 }
 function sugg(res){if(!ui.query)return `<li class="hint" style="padding:8px 2px">Start typing. You only get one try per turn.</li>`;if(!res.length)return `<li class="hint" style="padding:8px 2px">No country matches “${esc(ui.query)}”.</li>`;
-  return res.map(c=>{const u=S.used.includes(c.c);return `<li><button data-g="${c.c}" ${u?'disabled':''}><img class="mini" src="${FLAGS[c.c]}" alt="">${esc(c.n)}${u?'<span class="tag">used</span>':c.t?'<span class="tag">territory</span>':''}</button></li>`}).join('')}
+  return res.map(c=>{const u=S.used.includes(c.c);return `<li><button data-g="${c.c}" ${u?'disabled':''}>${S.diff==='easy'?`<img class="mini" src="${FLAGS[c.c]}" alt="">`:''}${esc(c.n)}${u?'<span class="tag">used</span>':c.t?'<span class="tag">territory</span>':''}</button></li>`}).join('')}
 function bindSugg(){layer.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>guess(ui.sel,b.dataset.g))}
 
 /* ---- bindings ---- */
