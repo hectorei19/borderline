@@ -176,6 +176,12 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .credits dt{font-weight:700}
 .credits dd{margin:2px 0 0;color:var(--ink-2);font-size:.92rem}
 .credits a{color:var(--sea)}
+.handoff{position:fixed;inset:0;z-index:35;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px 16px calc(24px + env(safe-area-inset-bottom,0px));text-align:center}
+.handoff h2{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:2.6rem;line-height:1;margin:0;text-wrap:balance}
+.handoff p{margin:0;color:var(--ink-2);max-width:32ch}
+.handoff .scores{justify-content:center}
+.handoff .primary{min-width:220px}
+.pin.big{width:34px;height:34px}
 .toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--sheet);padding:10px 16px;border-radius:5px;font-weight:600;box-shadow:var(--shadow);max-width:calc(100% - 32px);text-align:center}
 .toast.bad{background:var(--bad);color:#fff}
 .toast.good{background:var(--good);color:#fff}
@@ -465,9 +471,17 @@ function startGame(){
   startTurn(true);
   render();
 }
+function playerReady(){
+  if(!S||S.over||!S.waiting)return;
+  S.waiting=false;S.turnStart=now();S.deadline=S.timer?now()+S.timer*1000:0;
+  clearInterval(tick);if(S.timer)tick=setInterval(onTick,250);
+  render();
+}
 function startTurn(first){
   if(!S||S.over)return;
   if(S.mode==='online'){ensureTick();return}
+  // pass & play: hide the grid and wait until the next player taps "I'm ready"; their clock starts then
+  if(S.mode==='versus'){S.waiting=true;clearInterval(tick);return}
   S.turnStart=now();
   S.deadline=S.timer?now()+S.timer*1000:0;
   clearInterval(tick);
@@ -575,7 +589,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122019';
+const APP_VERSION='202610122022';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -932,6 +946,13 @@ function drawLayer(){
       <ul class="sugg" id="sugg">${sugg(res)}</ul>
       <div class="bar"><button class="ghost" id="cancel">Back to grid</button></div></div>`;
   }
+  if(S&&S.mode==='versus'&&S.waiting&&!S.over){const p=S.players[S.turn];
+    h+=`<div class="handoff" role="dialog" aria-modal="true" aria-labelledby="hot">
+      <span class="pin big" style="${pinStyle(S.turn)}"></span>
+      <h2 id="hot">${esc(p.name)}'s turn</h2>
+      <p>Pass the phone to ${esc(p.name)}.${S.timer?` The ${S.timer}-second clock starts when you tap.`:''}</p>
+      <div class="scores">${S.players.map((q,i)=>`<span class="chip ${i===S.turn?'on':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(q.name)} <b>${liveScore(i)}</b></span>`).join('')}</div>
+      <button class="primary" id="ready">I'm ready</button></div>`}
   if(ui.credits){
     h+=`<div class="infoscrim" id="credscrim"></div><div class="infobox helpbox credits" role="dialog" aria-modal="true" aria-labelledby="credt">
       <h2 id="credt">Credits</h2>
@@ -985,6 +1006,7 @@ function drawLayer(){
   if(ui.toast)h+=`<div class="toast ${ui.toast.kind||''}" role="status">${esc(ui.toast.msg)}</div>`;
   const had=document.getElementById('gq');const caret=had?had.selectionStart:null;
   layer.innerHTML=h;
+  const rd=document.getElementById('ready');if(rd){rd.onclick=playerReady;rd.focus()}
   const ck=document.getElementById('credok');
   if(ck){const close=()=>{ui.credits=false;drawLayer()};ck.onclick=close;document.getElementById('credscrim').onclick=close}
   const hk=document.getElementById('helpok');
