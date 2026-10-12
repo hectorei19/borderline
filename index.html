@@ -589,7 +589,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122022';
+const APP_VERSION='202610122030';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -856,9 +856,9 @@ function setupView(){
   return `<section class="panel">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Pass & play'],['online','Online']],setup.mode)}<p class="hint">${MHINT[setup.mode]}</p></div>
+    ${vs?`<div class="field"><span class="label">Players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
     <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}</p></div>
     <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>
-    ${vs?`<div class="field"><span class="label">Number of players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
     <div class="field"><span class="label">Time per turn</span>${seg('timer',[[0,'Off'],[10,'10 s'],[20,'20 s'],[30,'30 s']],setup.timer)}</div>
     ${on?`<div class="field">${FB_OK?'':'<p class="hint">Online play only works on the published site with Firebase connected.</p>'}<button class="primary" id="create" ${FB_OK?'':'disabled style="opacity:.5"'}>Create room</button></div>
     <div class="field"><label class="label" for="jcode">Join a friend's room</label><div class="joinrow"><input class="code-in" id="jcode" placeholder="ABCD" maxlength="4" value="${esc(setup.join||'')}" autocomplete="off"><button class="ghost" id="join" ${FB_OK?'':'disabled'}>Join</button></div></div>`:`
