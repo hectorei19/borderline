@@ -10,7 +10,7 @@ Files:
 
 ## Credits
 
-- Country data: [mledoze/countries](https://github.com/mledoze/countries) (npm `world-countries`), Open Database License (ODbL) 1.0. Adapted: some names shortened, Zimbabwe's currency list corrected, "drives on the left" and "over 100 million people" lists added by hand.
+- Country data: [mledoze/countries](https://github.com/mledoze/countries) (npm `world-countries`), Open Database License (ODbL) 1.0. Adapted: some names shortened; a few borders, official languages, currencies and capitals corrected; Antarctica removed; "drives on the left" and "over 100 million people" lists added by hand.
 - Flags: [flag-icons](https://github.com/lipis/flag-icons), MIT License.
 - Fonts: Big Shoulders Display, Barlow Semi Condensed, JetBrains Mono (Google Fonts, SIL Open Font License).
 - Online rooms: Firebase Realtime Database.
