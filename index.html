@@ -359,25 +359,46 @@ function canBlock(ans,c){const A=ans[c];const own=new Map();
   const tryC=(x,seen)=>{for(let d=0;d<ans.length;d++){if(d===c||seen.has(d)||!ans[d].includes(x))continue;seen.add(d);if(!own.has(d)||tryC(own.get(d),seen)){own.set(d,x);return true}}return false};
   for(const x of A)if(!tryC(x,new Set()))return false;return true}
 const isSafe=ans=>ans.every((_,c)=>!canBlock(ans,c));
+/* ---- difficulty ----
+   easy:   well-known categories only; every square has at least 5 sovereign countries that fit
+   normal: every category; every square has at least 2 answers
+   hard:   every category, themes like borders and seas more often; no square has more than 12 answers
+           and at least half the squares have 5 or fewer */
+const EASY_LABELS=new Set(['In Africa','In Europe','In Asia','In Oceania','In North or Central America','In South America',
+  'Landlocked','Island nation (no land borders)','Area over 1 million km²','Population over 100 million','Drives on the left',
+  'Name starts with A','Name starts with B','Name starts with C','Name starts with M','Name starts with S','Name ends in "-ia"','Name ends in "-stan"',
+  'Official language: English','Official language: French','Official language: Spanish','Official language: Arabic','Official language: Portuguese',
+  'Uses the euro','Currency called "dollar"','Flag has blue','Flag has green','Flag has yellow or gold','Flag has black','Flag of exactly 2 colours',
+  'Flag has a star','Flag has a crescent moon','Flag has a cross','Flag has the Union Jack','Flag has a coat of arms or seal',
+  'EU member','NATO member','Monarchy','Hosted the Summer Olympics','Hosted the men\'s World Cup','Won the men\'s World Cup']);
+const DIFFS=['easy','normal','hard'];
+let DIFF='normal';
+const sovCount=a=>{let k=0;for(const i of a)if(!C[i].t)k++;return k};
+let HARD_MAX=12,HARD_SMALL=5;
 function evalGrid(rows,cols){
-  const answers=[];let bad=0;
-  for(const rk of rows)for(const ck of cols){const a=inter(rk,ck);answers.push(a);if(a.length<2)bad+=10;if(a.length>C.length*0.5)bad+=10}
+  const answers=[];let bad=0,small=0;
+  for(const rk of rows)for(const ck of cols){const a=inter(rk,ck);answers.push(a);
+    if(a.length<2)bad+=10;if(a.length>C.length*0.5)bad+=10;
+    if(DIFF==='easy'&&sovCount(a)<5)bad+=5;
+    if(DIFF==='hard'){if(a.length>HARD_MAX)bad+=5;if(a.length<=HARD_SMALL)small++}}
+  if(DIFF==='hard'&&small*2<answers.length)bad+=(Math.ceil(answers.length/2)-small)*3;
   if(bad)return{answers,score:bad+100};
   let u=0;for(let c=0;c<answers.length;c++)if(canBlock(answers,c))u++;
   return{answers,score:u};
 }
 function famOK(list){const f={};for(const k of list){f[k.fam]=(f[k.fam]||0)+1;if(f[k.fam]>2)return false}return true}
 // pick a family first, then a category inside it, so every theme (flags, seas, sport, borders...) gets a fair share
-let FAMS=null;const RARE=new Set(['sea','border','sport','geo2','pol']);
-function pickCat(r){if(!FAMS){FAMS={};POOL.forEach(k=>(FAMS[k.fam]=FAMS[k.fam]||[]).push(k));FAMS=Object.values(FAMS)}
-  const f=FAMS[Math.floor(r()*FAMS.length)];return f[Math.floor(r()*f.length)]}
+const RARE=new Set(['sea','border','sport','geo2','pol']);
+const FAMCACHE={};
+function famsFor(){if(!FAMCACHE[DIFF]){const pool=DIFF==='easy'?POOL.filter(k=>EASY_LABELS.has(k.label)):POOL;const f={};pool.forEach(k=>(f[k.fam]=f[k.fam]||[]).push(k));FAMCACHE[DIFF]={fams:Object.values(f),rare:pool.filter(k=>RARE.has(k.fam))}}return FAMCACHE[DIFF]}
+function pickCat(r){const F=famsFor().fams;const f=F[Math.floor(r()*F.length)];return f[Math.floor(r()*f.length)]}
 function searchGrid(n,r,restarts){
   for(let rs=0;rs<restarts;rs++){
     const cand=[];const seen=new Set();for(let i=0;i<400&&cand.length<4*n;i++){const k=pickCat(r);if(!seen.has(k)){seen.add(k);cand.push(k)}}let rows=[],cols=[];
     for(const k of cand){if(rows.length<n&&famOK([...rows,k]))rows.push(k);else if(cols.length<n&&!rows.includes(k)&&famOK([...cols,k]))cols.push(k);if(rows.length===n&&cols.length===n)break}
-    // half the time, anchor one category from a theme that rarely fits (seas, borders, sport...) so those show up too
-    let anchor=null;
-    if(r()<0.5){const rare=POOL.filter(k=>RARE.has(k.fam));anchor=rare[Math.floor(r()*rare.length)];
+    // anchor one category from a theme that rarely fits (seas, borders, sport...) so those show up too
+    let anchor=null;const rare=famsFor().rare;
+    if(rare.length&&r()<(DIFF==='hard'?0.8:DIFF==='easy'?0.3:0.5)){anchor=rare[Math.floor(r()*rare.length)];
       if(!cols.includes(anchor)&&!rows.includes(anchor))rows[0]=anchor;else anchor=null}
     let cur=evalGrid(rows,cols);
     for(let it=0;it<1500&&cur.score>0;it++){
@@ -393,26 +414,22 @@ function searchGrid(n,r,restarts){
   return null;
 }
 const BANK5 = [];
-function generate(n,seed){
-  const r=rngFrom(seed);
-  if(n===5&&BANK5.length){
-    let [R,K]=BANK5[seed%BANK5.length];
-    R=shuffle(R,r);K=shuffle(K,r);if(r()<.5)[R,K]=[K,R];
-    const answers=[];for(const a of R)for(const b of K)answers.push(inter(CATS[a],CATS[b]));
-    return{rows:R,cols:K,answers};
-  }
-  return searchGrid(n,r,n===5?200:60);
+function generate(n,seed,diff){
+  DIFF=DIFFS.includes(diff)?diff:'normal';
+  HARD_MAX=n===5?15:12;HARD_SMALL=n===5?6:5;
+  const r=rngFrom(seed+(DIFF==='easy'?11:DIFF==='hard'?23:0)*7962624);
+  return searchGrid(n,r,n===5?250:80);
 }
 
 /* ---- codes ---- */
 const LET='ABCDEFGHJKLMNPQRSTUVWXYZ';
-function makeCode(n,seed){let s='',x=seed;for(let i=0;i<5;i++){s+=LET[x%24];x=Math.floor(x/24)}return n+'-'+s}
-function parseCode(t){const m=/^\s*([345])\s*-?\s*([A-Z]{5})\s*$/i.exec(t||'');if(!m)return null;let x=0;const s=m[2].toUpperCase();for(let i=4;i>=0;i--){const v=LET.indexOf(s[i]);if(v<0)return null;x=x*24+v}return{n:+m[1],seed:x}}
+function makeCode(n,seed,diff){let s='',x=seed;for(let i=0;i<5;i++){s+=LET[x%24];x=Math.floor(x/24)}return n+(diff==='easy'?'E':diff==='hard'?'H':'')+'-'+s}
+function parseCode(t){const m=/^\s*([345])\s*([EH]?)\s*-?\s*([A-Z]{5})\s*$/i.exec(t||'');if(!m)return null;let x=0;const s=m[3].toUpperCase();for(let i=4;i>=0;i--){const v=LET.indexOf(s[i]);if(v<0)return null;x=x*24+v}const d=m[2].toUpperCase();return{n:+m[1],seed:x,diff:d==='E'?'easy':d==='H'?'hard':'normal'}}
 const randSeed=()=>Math.floor(Math.random()*7962624);
 
 /* ---- state ---- */
 let S = null;
-let setup = {mode:'versus',n:3,timer:20,names:['Player 1','Player 2'],code:'',user:''};
+let setup = {mode:'versus',n:3,timer:20,diff:'normal',names:['Player 1','Player 2'],code:'',user:''};
 try{const s=JSON.parse(localStorage.getItem('bl-setup')||'null');if(s&&Array.isArray(s.names))setup={...setup,...s,code:''}}catch(e){}
 try{setup.user=localStorage.getItem('bl-user')||setup.user||''}catch(e){}
 let editingUser=!setup.user;
@@ -429,16 +446,19 @@ let ui = {sel:-1,query:'',reveal:-1,toast:null,fresh:-1};
 let offset=0;const now=()=>Date.now()+offset;
 let tick=null;
 
+// big or hard grids can take a second to build: show a note first so the screen does not look frozen
+function buildThenStart(){if(setup.n===5||setup.diff!=='normal')toast('Building a grid that can always be completed…');setTimeout(startGame,40)}
 function startGame(){
   let n=setup.n,seed=randSeed();
   const pc=parseCode(setup.code);
-  if(setup.code.trim()){if(!pc){toast('That code is not valid. It looks like 4-KQPMT.','bad');return}n=pc.n;seed=pc.seed}
-  let g=generate(n,seed),tries=0;
-  while(!g&&!pc&&tries++<20){seed=randSeed();g=generate(n,seed)}
+  let diff=setup.diff||'normal';
+  if(setup.code.trim()){if(!pc){toast('That code is not valid. It looks like 4-KQPMT or 4H-KQPMT.','bad');return}n=pc.n;seed=pc.seed;diff=pc.diff}
+  let g=generate(n,seed,diff),tries=0;
+  while(!g&&!pc&&tries++<20){seed=randSeed();g=generate(n,seed,diff)}
   if(!g){toast('Could not build a grid from that code. Try another.','bad');return}
   try{localStorage.setItem('bl-setup',JSON.stringify({...setup,code:''}))}catch(e){}
   const players=setup.mode==='solo'?[{name:setup.user||'You',score:0}]:setup.names.map((nm,i)=>({name:nm.trim()||('Player '+(i+1)),score:0}));
-  S={mode:setup.mode,n,seed,code:makeCode(n,seed),rows:g.rows,cols:g.cols,answers:g.answers,
+  S={mode:setup.mode,n,seed,diff,code:makeCode(n,seed,diff),rows:g.rows,cols:g.cols,answers:g.answers,
      cells:g.answers.map(()=>({o:-1,c:null})),used:[],players,turn:0,
      guesses:setup.mode==='solo'?n*n+n:null,timer:setup.timer,deadline:0,passes:0,over:false,wrong:0};
   ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};
@@ -554,17 +574,17 @@ function initFB(){
 const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
-function gridFor(n,seed){const k=n+':'+seed;if(!ansCache[k])ansCache[k]=generate(n,seed);return ansCache[k]}
-const APP_VERSION='202610121958';
+function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
+const APP_VERSION='202610122004';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
     if(!ansCache[k]){const answers=[];for(const a of r.rows)for(const b of r.cols)answers.push(CATS[a]&&CATS[b]?inter(CATS[a],CATS[b]):[]);ansCache[k]={rows:r.rows,cols:r.cols,answers}}
     return ansCache[k]}
-  return gridFor(r.cfg.n,r.seed);
+  return gridFor(r.cfg.n,r.seed,r.cfg.diff);
 }
 const versionOK=r=>!r.v||r.v===APP_VERSION;
-function freshSeed(n){for(let i=0;i<30;i++){const sd=randSeed();if(gridFor(n,sd))return sd}return 1}
+function freshSeed(n,diff){for(let i=0;i<30;i++){const sd=randSeed();if(gridFor(n,sd,diff))return sd}return 1}
 function lobbyOrder(r){return Object.entries(r.players||{}).sort((a,b)=>(a[1].t||0)-(b[1].t||0)).map(x=>x[0])}
 
 async function createRoom(){
@@ -572,7 +592,7 @@ async function createRoom(){
   try{
     let code='';
     for(let i=0;i<8;i++){code=randRoom();const ex=await db.ref('rooms/'+code).get();if(!ex.exists())break}
-    await db.ref('rooms/'+code).set({v:APP_VERSION,host:ME,created:TS(),cfg:{n:setup.n,timer:setup.timer},status:'lobby',
+    await db.ref('rooms/'+code).set({v:APP_VERSION,host:ME,created:TS(),cfg:{n:setup.n,timer:setup.timer,diff:setup.diff||'normal'},status:'lobby',
       players:{[ME]:{name:setup.user,t:TS(),on:true}}});
     listenRoom(code);
   }catch(e){console.error(e);toast('Could not create the room. Check the connection and try again.','bad')}
@@ -640,7 +660,7 @@ function syncRoom(){
   const order=r.order||lobbyOrder(r);
   const cellMap=r.cells||{};
   const cells=g.answers.map((_,i)=>cellMap[i]?{o:cellMap[i].o,c:cellMap[i].c,p:cellMap[i].p||0,sb:cellMap[i].sb||0}:{o:-1,c:null});
-  S={mode:'online',n,seed:r.seed,code:makeCode(n,r.seed),rows:g.rows,cols:g.cols,answers:g.answers,cells,
+  S={mode:'online',n,seed:r.seed,diff:r.cfg.diff||'normal',code:makeCode(n,r.seed,r.cfg.diff),rows:g.rows,cols:g.cols,answers:g.answers,cells,
      used:cells.filter(c=>c.c).map(c=>c.c),
      players:order.map(pid=>({pid,name:(r.players[pid]||{}).name||'Gone',on:(r.players[pid]||{}).on!==false,score:0})),
      turn:r.turn||0,timer:r.cfg.timer,deadline:r.deadline||0,turnStart:r.started||0,passes:r.passes||0,over:r.status==='over',wrong:r.wrong||0,
@@ -693,7 +713,7 @@ async function onlineAct(kind){
       if(r.host!==ME)return;
       const order=kind==='start'?lobbyOrder(r):(r.order||lobbyOrder(r)).filter(pid=>r.players[pid]);
       if(order.length<2)return;
-      r.order=order;r.seed=freshSeed(r.cfg.n);{const gg=gridFor(r.cfg.n,r.seed);r.rows=gg.rows;r.cols=gg.cols}r.v=APP_VERSION;r.cells=null;r.passes=0;r.wrong=0;r.turn=0;r.status='playing';
+      r.order=order;r.seed=freshSeed(r.cfg.n,r.cfg.diff);{const gg=gridFor(r.cfg.n,r.seed,r.cfg.diff);r.rows=gg.rows;r.cols=gg.cols}r.v=APP_VERSION;r.cells=null;r.passes=0;r.wrong=0;r.turn=0;r.status='playing';
       r.started=Date.now()+offset;
       r.deadline=r.cfg.timer?Date.now()+offset+r.cfg.timer*1000:0;
       r.ev={id:evId(),kind:'',text:kind==='start'?'Game on. '+(r.players[order[0]].name)+' starts.':'Rematch. New grid.'};return r}
@@ -718,7 +738,7 @@ function lobbyView(){
     ${versionOK(r)?'':'<p class="hint" style="color:var(--bad)">This room was made with a different version of the game. Reload the page; if it still shows this, ask the host to reload and create a new room.</p>'}
     <span class="label">Players ${order.length}/4</span>
     <div class="players">${order.map((pid,i)=>{const p=r.players[pid];return `<div class="lp ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)}<span class="tag">${[pid===r.host?'host':'',pid===ME?'you':'',p.on===false?'offline':''].filter(Boolean).join(' · ')}</span></div>`}).join('')}</div>
-    <p class="hint">${r.cfg.n} × ${r.cfg.n} grid · ${r.cfg.timer?r.cfg.timer+' s per turn':'no turn timer'}</p>
+    <p class="hint">${r.cfg.n} × ${r.cfg.n} grid · ${DLABEL[r.cfg.diff||'normal']} · ${r.cfg.timer?r.cfg.timer+' s per turn':'no turn timer'}</p>
     ${isHost?`<button class="primary" id="ostart" ${order.length<2?'disabled style="opacity:.5"':''}>${order.length<2?'Waiting for players…':'Start game'}</button>`:`<p class="hint">Waiting for the host to start the game.</p>`}
     <button class="ghost" id="leave">Leave room</button></section>`;
 }
@@ -784,6 +804,8 @@ try{document.fonts&&document.fonts.ready.then(()=>fitHeaders())}catch(e){}
 addEventListener('resize',()=>{clearTimeout(fitHeaders.t);fitHeaders.t=setTimeout(fitHeaders,120)});
 function onTickVisual(){const left=S.deadline-now();const bar=document.querySelector('.tbar');const sub=document.getElementById('tleft');if(bar)bar.style.width=Math.max(0,left/(S.timer*1000)*100)+'%';if(sub)sub.textContent=Math.max(0,Math.ceil(left/1000))+'s'}
 
+const DLABEL={easy:'Easy',normal:'Normal',hard:'Hard'};
+const DHINT={easy:'Well-known categories (continents, flags, languages, big events). Every square has at least 5 countries that fit.',normal:'All 100 categories. Every square has at least 2 countries that fit.',hard:'All categories, with borders, seas, politics and sport more often. Squares have few answers: none has more than 12 (15 in 5 × 5) and half of them have 5 or fewer (6 in 5 × 5).'};
 function seg(name,opts,val){return `<div class="seg" role="group">${opts.map(([v,l])=>`<button type="button" data-seg="${name}" data-v="${v}" aria-pressed="${String(v)===String(val)}">${l}</button>`).join('')}</div>`}
 function nameView(){
   return `<section class="panel namecard"><p class="big">Who's playing?</p>
@@ -805,19 +827,20 @@ function confirmPlayers(){
   const low=names.map(x=>x.toLowerCase());
   const dup=low.findIndex((x,i)=>low.indexOf(x)!==i);
   if(dup>=0){toast('Two players are called '+names[dup]+'. Use different names.','bad');return}
-  setup.names=names;askingPlayers=false;startGame();
+  setup.names=names;askingPlayers=false;buildThenStart();
 }
 function setupView(){
   const vs=setup.mode==='versus',on=setup.mode==='online';
   return `<section class="panel">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Same phone'],['online','Online']],setup.mode)}</div>
+    <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}</p></div>
     <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>
     ${vs?`<div class="field"><span class="label">Number of players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
     <div class="field"><span class="label">Time per turn</span>${seg('timer',[[0,'Off'],[10,'10 s'],[20,'20 s'],[30,'30 s']],setup.timer)}</div>
     ${on?`<div class="field">${FB_OK?'':'<p class="hint">Online play only works on the published site with Firebase connected.</p>'}<button class="primary" id="create" ${FB_OK?'':'disabled style="opacity:.5"'}>Create room</button></div>
     <div class="field"><label class="label" for="jcode">Join a friend's room</label><div class="joinrow"><input class="code-in" id="jcode" placeholder="ABCD" maxlength="4" value="${esc(setup.join||'')}" autocomplete="off"><button class="ghost" id="join" ${FB_OK?'':'disabled'}>Join</button></div></div>`:`
-    <div class="field"><label class="label" for="code">Grid code (optional)</label><input class="code-in" id="code" placeholder="e.g. 4-KQPMT" value="${esc(setup.code)}" maxlength="8" autocomplete="off"><p class="hint">Leave empty for a random grid. Enter a friend's code to play exactly the same grid on your own phone and compare scores.</p></div>
+    <div class="field"><label class="label" for="code">Grid code (optional)</label><input class="code-in" id="code" placeholder="e.g. 4H-KQPMT" value="${esc(setup.code)}" maxlength="8" autocomplete="off"><p class="hint">Leave empty for a random grid. Enter a friend's code to play exactly the same grid on your own phone and compare scores.</p></div>
     <button class="primary" id="start">${vs?'Next: player names':'Start game'}</button>`}
   </section>
   <section class="panel"><span class="label">How to play</span><ul class="rules">
@@ -833,7 +856,7 @@ function gameView(){
   const n=S.n;let h='';
   if(!S.over){
     const p=S.players[S.turn];
-    h+=`<div class="status"><span class="pin" style="${S.mode==='solo'?'background:var(--sea)':pinStyle(S.turn)}"></span><span class="who">${S.mode==='solo'?esc(S.players[0].name)+"'s grid":S.mode==='online'?(S.turn===S.me?'Your turn':'Waiting for '+esc(p.name)):esc(p.name)+"'s turn"}</span><span class="sub">${S.mode==='solo'?liveScore(0)+' pts · '+S.guesses+' guesses':''}${S.timer?` <span id="tleft">${S.timer}s</span>`:''}</span>${S.timer?'<span class="tbar" style="width:100%"></span>':''}</div>`;
+    h+=`<div class="status"><span class="pin" style="${S.mode==='solo'?'background:var(--sea)':pinStyle(S.turn)}"></span><span class="who">${S.mode==='solo'?esc(S.players[0].name)+"'s grid":S.mode==='online'?(S.turn===S.me?'Your turn':'Waiting for '+esc(p.name)):esc(p.name)+"'s turn"}</span><span class="sub">${DLABEL[S.diff||'normal']} · ${S.mode==='solo'?liveScore(0)+' pts · '+S.guesses+' guesses':''}${S.timer?` <span id="tleft">${S.timer}s</span>`:''}</span>${S.timer?'<span class="tbar" style="width:100%"></span>':''}</div>`;
   }
   if(S.mode!=='solo')h+=`<div class="scores">${S.players.map((p,i)=>`<span class="chip ${!S.over&&i===S.turn?'on':''} ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)} <b>${S.over?p.score:liveScore(i)}</b></span>`).join('')}</div>`;
   if(S.over)h+=resultsView();
@@ -930,6 +953,11 @@ function drawLayer(){
       <li>Each country can be used only once per grid.</li>
       <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
       <li>Every grid can always be completed: whatever answers are given, each empty square keeps at least one country that still fits.</li></ul>
+      <h3>Difficulty</h3><ul>
+      <li><b>Easy</b>: ${DHINT.easy}</li>
+      <li><b>Normal</b>: ${DHINT.normal}</li>
+      <li><b>Hard</b>: ${DHINT.hard}</li>
+      <li>Every level keeps the guarantee that the grid can always be completed. The grid code shows the level: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
       <h3>Modes</h3><ul>
       <li><b>Solo</b>: you get a few more guesses than squares. Wrong answers and time-outs use one up.</li>
       <li><b>Same phone</b>: 2–4 players pass one phone round.</li>
@@ -972,13 +1000,13 @@ function bindSugg(){layer.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>
 function bind(){
   app.querySelectorAll('[data-seg]').forEach(b=>b.onclick=()=>{const k=b.dataset.seg,v=b.dataset.v;
     if(k==='np'){const n=+v;while(setup.names.length<n)setup.names.push('');setup.names.length=n}
-    else setup[k]=k==='mode'?v:+v;render()});
+    else setup[k]=(k==='mode'||k==='diff')?v:+v;render()});
   app.querySelectorAll('[data-pn]').forEach(inp=>inp.oninput=e=>{setup.names[+inp.dataset.pn]=e.target.value});
   const $=id=>document.getElementById(id);
   if($('code'))$('code').oninput=e=>{setup.code=e.target.value};
   if($('addp'))$('addp').onclick=()=>{if(setup.names.length<4){setup.names.push('Player '+(setup.names.length+1));render()}};
   if($('remp'))$('remp').onclick=()=>{if(setup.names.length>2){setup.names.pop();render()}};
-  if($('start'))$('start').onclick=()=>{if(setup.mode==='versus'){if(!setup.names[0])setup.names[0]=setup.user;askingPlayers=true;render();setTimeout(()=>{const e=setup.names.findIndex(x=>!x.trim());const el=document.getElementById('pname'+(e<0?0:e));if(el)el.focus()},30)}else startGame()};
+  if($('start'))$('start').onclick=()=>{if(setup.mode==='versus'){if(!setup.names[0])setup.names[0]=setup.user;askingPlayers=true;render();setTimeout(()=>{const e=setup.names.findIndex(x=>!x.trim());const el=document.getElementById('pname'+(e<0?0:e));if(el)el.focus()},30)}else buildThenStart()};
   if($('goplay'))$('goplay').onclick=confirmPlayers;
   if($('backsetup'))$('backsetup').onclick=()=>{askingPlayers=false;render()};
   app.querySelectorAll('[data-pn]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'){const nx=document.getElementById('pname'+(+inp.dataset.pn+1));if(nx)nx.focus();else confirmPlayers()}});
@@ -992,12 +1020,12 @@ function bind(){
   if($('jcode'))$('jcode').oninput=e=>{setup.join=e.target.value};
   if($('jcode'))$('jcode').onkeydown=e=>{if(e.key==='Enter')joinRoom($('jcode').value)};
   if($('join'))$('join').onclick=()=>joinRoom($('jcode').value);
-  if($('ostart'))$('ostart').onclick=()=>onlineAct('start');
+  if($('ostart'))$('ostart').onclick=()=>{toast('Building the grid…');setTimeout(()=>onlineAct('start'),40)};
   if($('leave'))$('leave').onclick=leaveRoom;
   if($('copylink'))$('copylink').onclick=()=>{const t=document.getElementById('linkbox').textContent;try{navigator.clipboard.writeText(t).then(()=>toast('Link copied.','good'),()=>toast('Copy blocked. Select the link and copy it.'))}catch(e){}};
   if($('newg')&&S&&S.mode==='online')$('newg').onclick=leaveRoom;
   else if($('newg'))$('newg').onclick=()=>{clearInterval(tick);S=null;askingPlayers=false;setup.code='';render()};
-  if($('again'))$('again').onclick=()=>{if(S.mode==='online'){onlineAct('rematch');return}setup.code='';startGame()};
+  if($('again'))$('again').onclick=()=>{if(S.mode==='online'){onlineAct('rematch');return}setup.code='';buildThenStart()};
   if($('copy'))$('copy').onclick=()=>{const t=shareText();const done=()=>toast('Result copied.','good');try{navigator.clipboard.writeText(t).then(done,()=>{selectShare();toast('Copy blocked here. The text is selected: copy it manually.')})}catch(e){selectShare()}};
   app.querySelectorAll('[data-info]').forEach(b=>{b.onclick=()=>{ui.info=+b.dataset.info;drawLayer()};b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();b.click()}}});
   app.querySelectorAll('[data-cell]').forEach(b=>b.onclick=()=>{
