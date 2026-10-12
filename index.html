@@ -590,7 +590,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122035';
+const APP_VERSION='202610122043';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -827,7 +827,7 @@ const DHINT={
   hard:'For experts. Tricky topics, few possible answers.'};
 const DEXAMPLE={
   easy:'"In Europe" × "Uses the euro", "Flag has a star" × "In Africa"',
-  normal:'"Landlocked" × "Name starts with B", "Coast on the Mediterranean" × "Flag has green"',
+  normal:'"Landlocked" × "Flag has a star", "Coast on the Mediterranean" × "Flag has green"',
   hard:'"Borders Niger" × "Official language: French", "Coast on the Red Sea" × "Monarchy"'};
 function seg(name,opts,val){return `<div class="seg" role="group">${opts.map(([v,l])=>`<button type="button" data-seg="${name}" data-v="${v}" aria-pressed="${String(v)===String(val)}">${l}</button>`).join('')}</div>`}
 function nameView(){
@@ -866,13 +866,12 @@ function setupView(){
     <div class="field"><label class="label" for="code">Grid code (optional)</label><input class="code-in" id="code" placeholder="e.g. 4H-KQPMT" value="${esc(setup.code)}" maxlength="8" autocomplete="off"><p class="hint">Leave empty for a random grid. Enter a friend's code to play exactly the same grid on your own phone and compare scores.</p></div>
     <button class="primary" id="start">${vs?'Next: player names':'Start game'}</button>`}
   </section>
-  <section class="panel"><span class="label">How to play</span><ul class="rules">
-    <li>Each square needs a country that matches its row <em>and</em> its column.</li>
-    <li>Answers can be any of the 250 countries and territories in the list (Greenland, Puerto Rico, Hong Kong…). Each one can only be used once per grid.</li>
-    <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
-    <li>Score = square difficulty (0–${SQ_MAX}, ranked inside each grid: the hardest square is worth the most) + ${SPEED_PER_SEC} per second left + ${LINE_BONUS} per full row or column. See <b>How to play</b> at the top.</li>
-    <li>Every grid can always be completed: whatever answers you give, each empty square still has at least one country left.</li>
-    ${on?'<li>Everyone plays on their own phone. The host creates a room and shares the 4-letter code; up to 4 players join.</li><li>On your turn, pick a square and name a country. Right answer claims it; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':vs?'<li>Take turns on one phone: pick a square and name a country. Right answer claims the square; wrong answer or time out passes the turn.</li><li>The game ends when the grid is full or everyone passes in a row.</li>':'<li>You get a few more guesses than squares. Wrong answers and time-outs use one up.</li>'}
+  <section class="panel"><span class="label">Quick rules</span><ul class="rules">
+    <li>Fill each square with a country that matches its row <em>and</em> its column.</li>
+    <li>Each country once per grid. Tap <span class="ib">i</span> to see what a category means.</li>
+    ${on?'<li>Everyone on their own phone: the host creates a room and shares the code.</li>':vs?'<li>Take turns on one phone. A wrong answer or time-out passes the turn.</li>':'<li>You have a few more guesses than squares.</li>'}
+    <li>Harder squares, quick answers and full lines score more.</li>
+    <li>Full rules: <b>How to play</b> at the top.</li>
   </ul></section>`;
 }
 function gameView(){
@@ -981,27 +980,30 @@ function drawLayer(){
     const ex=ks.map((k,i)=>`<tr><td>${i+1}.</td><td>${k} possible countries</td><td>${ev[i]} pts</td></tr>`).join('');
     h+=`<div class="infoscrim" id="helpscrim"></div><div class="infobox helpbox" role="dialog" aria-modal="true" aria-labelledby="helpt">
       <h2 id="helpt">How to play</h2>
-      <h3>The grid</h3><ul>
-      <li>Each square needs a country or territory that matches its row <b>and</b> its column. 250 are accepted, including territories like Greenland or Hong Kong.</li>
-      <li>Each country can be used only once per grid.</li>
-      <li>Tap a category's <span class="ib">i</span> to see exactly what it means.</li>
-      <li>Every grid can always be completed: whatever answers are given, each empty square keeps at least one country that still fits.</li></ul>
-      <h3>Difficulty</h3><ul>
-      <li><b>Easy</b>: ${DHINT.easy} <i>Example: ${DEXAMPLE.easy}.</i></li>
-      <li><b>Normal</b>: ${DHINT.normal} <i>Example: ${DEXAMPLE.normal}.</i></li>
-      <li><b>Hard</b>: ${DHINT.hard} <i>Example: ${DEXAMPLE.hard}.</i></li>
-      <li>In Normal and Hard, the country list shows no flags and only names that start with what you type. "Name starts with…" categories only appear in Easy.</li>
-      <li>On every level the grid can always be completed. The grid code shows the level: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
+      <h3>The idea</h3><ul>
+      <li>The grid has a category on every row and every column, for example "In Africa" and "Flag has a star".</li>
+      <li>Fill each square with a country that matches <b>both</b> its row and its column. For that pair, Ghana or Somalia would work.</li>
+      <li>You can answer with any of the ${C.length} countries and territories in the game, from Brazil to Greenland or Hong Kong. Each one can be used once per grid.</li>
+      <li>Tap the <span class="ib">i</span> next to a category to read exactly what it means.</li>
+      <li>Every grid can always be finished: whatever answers are given, each empty square keeps at least one country that fits.</li></ul>
+      <h3>Your turn</h3><ul>
+      <li>Tap an empty square, start typing a country and pick it from the list.</li>
+      <li>A right answer puts its flag in the square and gives you the points. A wrong answer or running out of time ends your turn.</li>
+      <li>With other players, you take turns. The game ends when the grid is full, or when every player passes one after another.</li></ul>
       <h3>Modes</h3><ul>
-      <li><b>Solo</b>: you get a few more guesses than squares. Wrong answers and time-outs use one up.</li>
-      <li><b>Pass &amp; play</b>: 2–4 players share one phone and pass it round.</li>
-      <li><b>Online</b>: each player on their own phone. The host creates a room and shares the 4-letter code.</li>
-      <li>In Pass &amp; play and Online, a wrong answer or a time-out passes the turn. The game ends when the grid is full or everyone passes in a row.</li></ul>
+      <li><b>Solo</b>: you on your own, with a few more guesses than there are squares. Aim for the highest score.</li>
+      <li><b>Pass &amp; play</b>: 2 to 4 players sharing one phone. Between turns, the phone shows whose turn it is and their clock starts when they tap <i>I'm ready</i>.</li>
+      <li><b>Online</b>: 2 to 4 players, each on their own phone. The host creates a room and shares its 4-letter code or link; the others join with it.</li></ul>
+      <h3>Difficulty</h3><ul>
+      <li><b>Easy</b>: ${DHINT.easy} The country list shows flags and finds any part of a name. <i>Example: ${DEXAMPLE.easy}.</i></li>
+      <li><b>Normal</b>: ${DHINT.normal} The country list shows names only and finds them by their first letters, so you need to know the answer. <i>Example: ${DEXAMPLE.normal}.</i></li>
+      <li><b>Hard</b>: ${DHINT.hard} The country list works as in Normal. <i>Example: ${DEXAMPLE.hard}.</i></li>
+      <li>The grid code shows the level, so friends can play exactly your grid: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
       <h3>Scoring</h3><ul>
-      <li><b>Square difficulty, 0 to ${SQ_MAX}</b>: when the grid is made, its squares are ranked from hardest (fewest countries fit) to easiest (most countries fit). The points are spread in equal steps along that ranking: the hardest square is worth ${SQ_MAX}, the easiest 0. Squares with the same number of options share a place and are worth the same. Any correct answer in a square gets that square's points, and they stay hidden until someone answers it.</li>
-      <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your turn when you answer. With the timer off, it counts down from ${SPEED_WINDOW} seconds.</li>
-      <li><b>Line bonus</b>: +${LINE_BONUS} for each full row or column where every square is yours.</li>
-      <li>Wrong answers cost no points. Highest total wins.</li></ul>
+      <li><b>Square points, 0 to ${SQ_MAX}</b>: the squares of each grid are ranked from hardest (fewest countries fit) to easiest (most countries fit), and the points go up in equal steps. The hardest square is worth ${SQ_MAX}. Every correct answer in a square earns the same points, and you discover them when the square is filled.</li>
+      <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your clock when you answer (counted from ${SPEED_WINDOW} seconds when the timer is off).</li>
+      <li><b>Line bonus</b>: +${LINE_BONUS} for every full row or column where all the squares are yours.</li>
+      <li>The highest total wins.</li></ul>
       <h3>Example: the 9 squares of a 3 × 3 grid, ranked</h3>
       <table class="ptable">${ex}</table>
       <p class="hint">Data sources and licences: see <b>Credits &amp; data sources</b> at the bottom of the page.</p>
