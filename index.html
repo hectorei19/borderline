@@ -202,7 +202,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .answers{display:flex;flex-direction:column;gap:6px}
 .answers p{margin:0;font-size:.95rem}
 .answers .hdr{font-weight:700}
-.sharebox{font-family:var(--mono);font-size:.85rem;white-space:pre-wrap;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:10px;user-select:all;margin:0}
+.sharebox{font-family:var(--mono);font-size:.85rem;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:10px;user-select:all;margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 @keyframes pop{from{transform:scale(.6);opacity:.2}to{transform:none;opacity:1}}
 .cell.new{animation:pop .35s cubic-bezier(.3,1.6,.6,1)}
@@ -457,6 +457,8 @@ let ui = {sel:-1,query:'',reveal:-1,toast:null,fresh:-1};
 let offset=0;const now=()=>Date.now()+offset;
 let tick=null;
 
+// drop ?grid= from the address once used, so a reload does not bring the friend's grid back
+function clearGridParam(){try{const u=new URL(location.href);if(u.searchParams.has('grid')){u.searchParams.delete('grid');history.replaceState(null,'',u.pathname+u.search+u.hash)}}catch(e){}}
 // big or hard grids can take a second to build: show a note first so the screen does not look frozen
 function buildThenStart(){if(setup.n===5||setup.diff!=='normal')toast('Building a grid that can always be completed…');setTimeout(startGame,40)}
 function startGame(){
@@ -468,6 +470,7 @@ function startGame(){
   while(!g&&!pc&&tries++<20){seed=randSeed();g=generate(n,seed,diff)}
   if(!g){toast('Could not build a grid from that code. Try another.','bad');return}
   try{localStorage.setItem('bl-setup',JSON.stringify({...setup,code:''}))}catch(e){}
+  clearGridParam();
   const players=setup.mode==='solo'?[{name:setup.user||'You',score:0}]:setup.names.map((nm,i)=>({name:nm.trim()||('Player '+(i+1)),score:0}));
   S={mode:setup.mode,n,seed,diff,code:makeCode(n,seed,diff),rows:g.rows,cols:g.cols,answers:g.answers,
      cells:g.answers.map(()=>({o:-1,c:null})),used:[],players,turn:0,
@@ -594,7 +597,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151330';
+const APP_VERSION='202610151400';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -862,17 +865,17 @@ function confirmPlayers(){
   setup.names=names;askingPlayers=false;buildThenStart();
 }
 function setupView(){
-  const vs=setup.mode==='versus',on=setup.mode==='online';
+  const vs=setup.mode==='versus',on=setup.mode==='online',pc=parseCode(setup.code),fg=pc&&{...pc,code:setup.code.trim().toUpperCase()};
   return `<section class="panel">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Pass & play'],['online','Online']],setup.mode)}<p class="hint">${MHINT[setup.mode]}</p></div>
     ${vs?`<div class="field"><span class="label">Players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
+    ${fg&&!on?`<div class="field"><span class="label">Friend's grid</span><p class="hint" style="color:var(--ink);font-size:1rem"><b>${esc(fg.code)}</b> · ${fg.n} × ${fg.n} · ${fg.diff[0].toUpperCase()+fg.diff.slice(1)}. You play exactly the squares your friend played.</p><button class="ghost" id="nofg">Play a random grid instead</button></div>`:`
     <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}</p></div>
-    <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>
+    <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>`}
     <div class="field"><span class="label">Time per turn</span>${seg('timer',[[0,'Off'],[10,'10 s'],[20,'20 s'],[30,'30 s']],setup.timer)}</div>
     ${on?`<div class="field">${FB_OK?'':'<p class="hint">Online play only works on the published site with Firebase connected.</p>'}<button class="primary" id="create" ${FB_OK?'':'disabled style="opacity:.5"'}>Create room</button></div>
     <div class="field"><label class="label" for="jcode">Join a friend's room</label><div class="joinrow"><input class="code-in" id="jcode" placeholder="ABCD" maxlength="4" value="${esc(setup.join||'')}" autocomplete="off"><button class="ghost" id="join" ${FB_OK?'':'disabled'}>Join</button></div></div>`:`
-    <div class="field"><label class="label" for="code">Grid code (optional)</label><input class="code-in" id="code" placeholder="e.g. 4H-KQPMT" value="${esc(setup.code)}" maxlength="8" autocomplete="off"><p class="hint">Leave empty for a random grid. Enter a friend's code to play exactly the same grid on your own phone and compare scores.</p></div>
     <button class="primary" id="start">${vs?'Next: player names':'Start game'}</button>`}
   </section>
   <section class="panel"><span class="label">Quick rules</span><ul class="rules">
@@ -918,16 +921,25 @@ function shareText(){
   const head=S.mode==='solo'?`Borderline ${S.code} — ${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:`Borderline ${S.code} — `+S.players.map(p=>p.name+' '+p.score).join(', ');
   return head+'\n'+g.trim();
 }
+// link that opens this exact grid (?grid=4E-KQPMT), sent together with the result
+function gridLink(){return location.origin+location.pathname+'?grid='+encodeURIComponent(S.code)}
+function shareMessage(){return shareText()+'\n\nPlay this grid: '+gridLink()}
+// phones: the system share menu (WhatsApp, Telegram...); elsewhere: copy result and link
+function shareResult(){const t=shareMessage();
+  // if copying is blocked, put the full message (with the link) in the result box and select it
+  const manual=()=>{const el=document.getElementById('share');if(el)el.textContent=t;selectShare();toast('Copy blocked here. The text is selected: copy it manually.')};
+  const copy=()=>{try{navigator.clipboard.writeText(t).then(()=>toast('Result and link copied. Paste them in WhatsApp or Telegram.','good'),manual)}catch(e){manual()}};
+  if(navigator.share){navigator.share({text:t}).catch(e=>{if(e&&e.name!=='AbortError')copy()})}else copy()}
 function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
-    return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share the code <b>${S.code}</b> so friends can try the same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Copy result</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
+    return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share sends your result with a link: friends who open it play this same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
   const top=ranked[0].score,winners=ranked.filter(p=>p.score===top);
   return `<section class="panel"><p class="big">${winners.length>1?'Draw at '+top+' points':esc(winners[0].name)+' wins'}</p>
    <div class="podium">${ranked.map((p,r)=>`<div class="place ${p.score===top?'win':''}"><span class="rk">${r+1}</span><span class="pin" style="${pinStyle(p.i)}"></span><span class="nm">${esc(p.name)}</span><span class="pt">${p.score}</span></div><div class="bd">${breakdown(p)}</div>`).join('')}</div>
    <pre class="sharebox" id="share">${esc(shareText())}</pre>
-   <div class="row-btns"><button class="ghost" id="copy">Copy result</button>${S.mode==='online'&&!S.host?'':'<button class="primary" id="again" style="flex:1">Rematch, new grid</button>'}</div>
+   <div class="row-btns"><button class="ghost" id="copy">Share</button>${S.mode==='online'&&!S.host?'':'<button class="primary" id="again" style="flex:1">Rematch, new grid</button>'}</div>
    ${S.mode==='online'?(S.host?'':'<p class="hint">The host can start a rematch.</p>')+'<button class="ghost" id="newg">Leave room</button>':'<button class="ghost" id="newg">Change settings</button>'}</section>`;
 }
 function answersView(){
@@ -1008,7 +1020,7 @@ function drawLayer(){
       <li><b>Easy</b>: ${DHINT.easy} The country list finds any part of a name. <i>Example: ${DEXAMPLE.easy}.</i></li>
       <li><b>Normal</b>: ${DHINT.normal} The country list shows names only and finds them by their first letters, so you need to know the answer. <i>Example: ${DEXAMPLE.normal}.</i></li>
       <li><b>Hard</b>: ${DHINT.hard} The country list works as in Normal. <i>Example: ${DEXAMPLE.hard}.</i></li>
-      <li>The grid code shows the level, so friends can play exactly your grid: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
+      <li>At the end, <b>Share</b> sends your result with a link, for example on WhatsApp or Telegram. Friends who open it play exactly your grid. The grid code shows the level: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
       <h3>Scoring</h3><ul>
       <li><b>Square points, 0 to ${SQ_MAX}</b>: the squares of each grid are ranked from hardest (fewest countries fit) to easiest (most countries fit), and the points go up in equal steps. The hardest square is worth ${SQ_MAX}. Every correct answer in a square earns the same points, and you discover them when the square is filled.</li>
       <li><b>Speed bonus</b>: +${SPEED_PER_SEC} for every whole second left on your clock when you answer (counted from ${SPEED_WINDOW} seconds when the timer is off).</li>
@@ -1050,7 +1062,7 @@ function bind(){
     else setup[k]=(k==='mode'||k==='diff')?v:+v;render()});
   app.querySelectorAll('[data-pn]').forEach(inp=>inp.oninput=e=>{setup.names[+inp.dataset.pn]=e.target.value});
   const $=id=>document.getElementById(id);
-  if($('code'))$('code').oninput=e=>{setup.code=e.target.value};
+  if($('nofg'))$('nofg').onclick=()=>{setup.code='';clearGridParam();render()};
   if($('addp'))$('addp').onclick=()=>{if(setup.names.length<4){setup.names.push('Player '+(setup.names.length+1));render()}};
   if($('remp'))$('remp').onclick=()=>{if(setup.names.length>2){setup.names.pop();render()}};
   if($('start'))$('start').onclick=()=>{if(setup.mode==='versus'){if(!setup.names[0])setup.names[0]=setup.user;askingPlayers=true;render();setTimeout(()=>{const e=setup.names.findIndex(x=>!x.trim());const el=document.getElementById('pname'+(e<0?0:e));if(el)el.focus()},30)}else buildThenStart()};
@@ -1073,7 +1085,7 @@ function bind(){
   if($('newg')&&S&&S.mode==='online')$('newg').onclick=leaveRoom;
   else if($('newg'))$('newg').onclick=()=>{clearInterval(tick);S=null;askingPlayers=false;setup.code='';render()};
   if($('again'))$('again').onclick=()=>{if(S.mode==='online'){onlineAct('rematch');return}setup.code='';buildThenStart()};
-  if($('copy'))$('copy').onclick=()=>{const t=shareText();const done=()=>toast('Result copied.','good');try{navigator.clipboard.writeText(t).then(done,()=>{selectShare();toast('Copy blocked here. The text is selected: copy it manually.')})}catch(e){selectShare()}};
+  if($('copy'))$('copy').onclick=shareResult;
   app.querySelectorAll('[data-info]').forEach(b=>{b.onclick=()=>{ui.info=+b.dataset.info;drawLayer()};b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();b.click()}}});
   app.querySelectorAll('[data-cell]').forEach(b=>b.onclick=()=>{
     const ci=+b.dataset.cell;
@@ -1094,6 +1106,8 @@ function start(data){
   if(editingUser||(S&&S.mode==='online'))S=null;
   if(S&&!S.over)startTurn();
   try{const q=new URLSearchParams(location.search).get('room');if(q&&/^[A-Za-z]{4}$/.test(q)){setup.mode='online';setup.join=q.toUpperCase()}}catch(e){}
+  // a shared result link (?grid=4E-KQPMT) opens the setup screen ready to play that same grid
+  try{const g=new URLSearchParams(location.search).get('grid');if(g&&parseCode(g)){setup.code=g.trim().toUpperCase();if(setup.mode==='online')setup.mode='solo';if(S&&S.mode!=='online')S=null}}catch(e){}
   if(FB_OK&&!S){let saved='';try{saved=localStorage.getItem('bl-room')||''}catch(e){}
     if(saved&&initFB()){listenRoom(saved)}}
   render();
