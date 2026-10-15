@@ -590,7 +590,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610122050';
+const APP_VERSION='202610151200';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -929,8 +929,9 @@ function answersView(){
 }
 
 /* ---- guess sheet ---- */
-// Easy: names that start with or contain what you typed, with flags.
-// Normal and Hard: only names that start with what you typed, and no flags, so the list gives less away.
+// The list shows names only, never flags, in every difficulty.
+// Easy: names that start with or contain what you typed.
+// Normal and Hard: only names that start with what you typed, so the list gives less away.
 function matches(q){
   const k=N(q);if(!k)return[];
   const easy=S&&S.diff==='easy';
@@ -995,7 +996,7 @@ function drawLayer(){
       <li><b>Pass &amp; play</b>: 2 to 4 players sharing one phone. Between turns, the phone shows whose turn it is and their clock starts when they tap <i>I'm ready</i>.</li>
       <li><b>Online</b>: 2 to 4 players, each on their own phone. The host creates a room and shares its 4-letter code or link; the others join with it.</li></ul>
       <h3>Difficulty</h3><ul>
-      <li><b>Easy</b>: ${DHINT.easy} The country list shows flags and finds any part of a name. <i>Example: ${DEXAMPLE.easy}.</i></li>
+      <li><b>Easy</b>: ${DHINT.easy} The country list finds any part of a name. <i>Example: ${DEXAMPLE.easy}.</i></li>
       <li><b>Normal</b>: ${DHINT.normal} The country list shows names only and finds them by their first letters, so you need to know the answer. <i>Example: ${DEXAMPLE.normal}.</i></li>
       <li><b>Hard</b>: ${DHINT.hard} The country list works as in Normal. <i>Example: ${DEXAMPLE.hard}.</i></li>
       <li>The grid code shows the level, so friends can play exactly your grid: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
@@ -1030,7 +1031,7 @@ function drawLayer(){
   }
 }
 function sugg(res){if(!ui.query)return `<li class="hint" style="padding:8px 2px">Start typing. You only get one try per turn.</li>`;if(!res.length)return `<li class="hint" style="padding:8px 2px">No country matches “${esc(ui.query)}”.</li>`;
-  return res.map(c=>{const u=S.used.includes(c.c);return `<li><button data-g="${c.c}" ${u?'disabled':''}>${S.diff==='easy'?`<img class="mini" src="${FLAGS[c.c]}" alt="">`:''}${esc(c.n)}${u?'<span class="tag">used</span>':c.t?'<span class="tag">territory</span>':''}</button></li>`}).join('')}
+  return res.map(c=>{const u=S.used.includes(c.c);return `<li><button data-g="${c.c}" ${u?'disabled':''}>${esc(c.n)}${u?'<span class="tag">used</span>':c.t?'<span class="tag">territory</span>':''}</button></li>`}).join('')}
 function bindSugg(){layer.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>guess(ui.sel,b.dataset.g))}
 
 /* ---- bindings ---- */
