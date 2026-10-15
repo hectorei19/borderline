@@ -468,8 +468,8 @@ let tick=null;
 
 // drop ?grid= from the address once used, so a reload does not bring the friend's grid back
 function clearGridParam(){try{const u=new URL(location.href);if(u.searchParams.has('grid')){u.searchParams.delete('grid');history.replaceState(null,'',u.pathname+u.search+u.hash)}}catch(e){}}
-/* ---- daily grid: one 3×3 Normal grid for everyone, new at midnight in Spain, one try per device ---- */
-const DAILY_N=3,DAILY_DIFF='normal',DAILY_FIRST='2026-10-15';
+/* ---- daily grid: one 4×4 Normal grid for everyone, new at midnight in Spain, one try per device ---- */
+const DAILY_N=4,DAILY_DIFF='normal',DAILY_FIRST='2026-10-15';
 const madrid=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 function madridParts(t){const o={};madrid.formatToParts(new Date(t)).forEach(p=>o[p.type]=p.value);return o}
 function todayKey(){const p=madridParts(now());return p.year+'-'+p.month+'-'+p.day}
@@ -629,7 +629,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151700';
+const APP_VERSION='202610151730';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -904,7 +904,7 @@ function homeView(){
   const date=new Date(key+'T12:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
   const done=d&&d.S.over,p=done&&d.S.players[0];
   const daily=done
-    ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="ht">${p.score} points</span><span class="hs">${p.cells}/${DAILY_N*DAILY_N} squares. See your result and share it.</span><span class="hm">Next grid in ${next}</span></button>`
+    ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="ht">${p.score} points</span><span class="hs">${p.cells}/${d.S.n*d.S.n} squares. See your result and share it.</span><span class="hm">Next grid in ${next}</span></button>`
     :`<button class="hcard ac" id="daily"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap to continue.':'Compete with everyone: the same grid, one try.'}</span></button>`;
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
