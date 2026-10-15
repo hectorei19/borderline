@@ -258,7 +258,7 @@ add('lang','Official language: French',c=>has(c,'French'));
 add('lang','Official language: Spanish',c=>has(c,'Spanish'));
 add('lang','Official language: Arabic',c=>has(c,'Arabic'));
 add('lang','Official language: Portuguese',c=>has(c,'Portuguese'));
-add('money','Uses the euro',c=>c.cu.includes('EUR'));
+add('money','Uses the euro',c=>c.cu.includes('EUR')&&c.r==='EU'); // European places only: no overseas territories
 add('money','Currency called "dollar"',c=>c.d===1);
 add('cap','Capital starts with same letter',c=>c.cap&&N(c.cap)[0]===c.k[0]);
 add('cap','Capital name has 2+ words',c=>/\s/.test(c.cap.trim()));
@@ -301,7 +301,7 @@ function describe(k){
     'Name of 2+ words':'The country name is made of two or more words. '+NAMEWORD,
     'Name contains Z':'The country name contains the letter Z anywhere. '+NAMEWORD,
     'Starts and ends with the same letter':'The first and last letters of the country name are the same. '+NAMEWORD,
-    'Uses the euro':'The euro is the official currency, including countries outside the EU that use it.',
+    'Uses the euro':'The euro is the official currency, including countries outside the EU that use it. Only places in Europe count: overseas territories like Martinique or Réunion do not.',
     'Currency called "dollar"':'The official currency is a dollar of any kind (US, Canadian, East Caribbean, etc.), including countries that use the US dollar.',
     'Capital starts with same letter':'The name of the capital starts with the same letter as the name of the country.',
     'Capital name has 2+ words':'The name of the capital is made of two or more words.',
@@ -590,7 +590,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151200';
+const APP_VERSION='202610151230';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
