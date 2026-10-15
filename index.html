@@ -204,9 +204,10 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .home{display:flex;flex-direction:column;gap:12px}
 .hcard{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;text-align:left;background:var(--sheet);border:1px solid var(--rule);border-radius:8px;padding:16px;box-shadow:var(--shadow)}
 .hcard.ac{border:2px solid var(--sea);padding:15px}
-.hcard .ht,.backline .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
-.hcard .hs{color:var(--ink-2);font-size:1rem}
-.hcard .hm{font-family:var(--mono);font-size:.75rem;color:var(--sea);letter-spacing:.04em}
+.hcard .dboard{width:100%;margin-top:8px}
+.hcard>.ht,.backline .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
+.hcard>.hs{color:var(--ink-2);font-size:1rem}
+.hcard>.hm{font-family:var(--mono);font-size:.75rem;color:var(--sea);letter-spacing:.04em}
 .backline{display:flex;align-items:center;gap:10px}.backline .linkbtn{padding:4px 0}.backline .ht{font-size:1.4rem}
 .dres{margin:0;font-size:1.05rem}
 .answers .hdr{font-weight:700;display:flex;align-items:baseline;gap:12px}
@@ -479,12 +480,18 @@ function msToNextDay(){const p=madridParts(now());return (24*3600-(+p.hour*3600+
 function dailySeed(key){let h=2166136261;for(const ch of 'borderline-daily-'+key){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return h%7962624}
 function loadDaily(){try{const d=JSON.parse(localStorage.getItem('bl-daily')||'null');return d&&d.date===todayKey()?d:null}catch(e){return null}}
 function saveDaily(){if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}}
+// today's grid is built once per day and kept, so the home screen can show it before you play
+let dailyCache=null;
+function dailyGrid(){const key=todayKey();if(dailyCache&&dailyCache.key===key)return dailyCache;
+  let seed=dailySeed(key),g=generate(DAILY_N,seed,DAILY_DIFF),k=0;
+  while(!g&&k++<50){seed=(seed+1)%7962624;g=generate(DAILY_N,seed,DAILY_DIFF)}
+  return dailyCache=g?{key,seed,g}:null}
 function playDaily(){
   const saved=loadDaily();
   if(saved){S=saved.S;ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};if(!S.over)startTurn();render();return}
-  const key=todayKey();let seed=dailySeed(key),g=generate(DAILY_N,seed,DAILY_DIFF),k=0;
-  while(!g&&k++<50){seed=(seed+1)%7962624;g=generate(DAILY_N,seed,DAILY_DIFF)}
-  if(!g){toast('Could not build today\'s grid. Try again later.','bad');return}
+  const dg=dailyGrid();
+  if(!dg){toast('Could not build today\'s grid. Try again later.','bad');return}
+  const key=dg.key,seed=dg.seed,g=dg.g;
   S={mode:'solo',daily:key,day:dayNumber(key),n:DAILY_N,seed,diff:DAILY_DIFF,code:makeCode(DAILY_N,seed,DAILY_DIFF),rows:g.rows,cols:g.cols,answers:g.answers,
      cells:g.answers.map(()=>({o:-1,c:null})),used:[],players:[{name:setup.user||'You',score:0}],turn:0,
      guesses:DAILY_N*DAILY_N+DAILY_N,timer:0,deadline:0,passes:0,over:false,wrong:0};
@@ -629,7 +636,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151730';
+const APP_VERSION='202610151800';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -899,13 +906,27 @@ function confirmPlayers(){
 // home: three ways to play. 'solo' and 'friends' are the settings screens behind two of them
 let screen='home';
 const screenFor=s=>!s||s.daily?'home':s.mode==='solo'?'solo':'friends';
+// today's grid shown open on the home screen: tapping a square starts (or continues) the daily game there
+function dailyBoard(saved){
+  const dg=saved?null:dailyGrid();if(!saved&&!dg)return '';
+  const rows=saved?saved.rows:dg.g.rows,cols=saved?saved.cols:dg.g.cols,n=cols.length;
+  let h=`<div class="board-wrap dboard"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))"><div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
+  cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}</span><span class="ht">${titleWithInfo(CATS[k].short)}</span></div>`);
+  rows.forEach((rk,i)=>{
+    h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}</span><span class="ht">${titleWithInfo(CATS[rk].short)}</span></div>`;
+    for(let j=0;j<n;j++){const ci=i*n+j,cell=saved&&saved.cells[ci];
+      if(cell&&cell.o>=0){const c=byCode[cell.c];h+=`<div class="cell taken flag"><span class="flagbox" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span><span class="nm">${esc(c.n)}</span></span></div>`}
+      else h+=`<button class="cell" data-dcell="${ci}" aria-label="Square ${colRef(j)+rowRef(i)}: start today's grid"><span class="plus"></span></button>`}
+  });
+  return h+`</div></div>`;
+}
 function homeView(){
   const key=todayKey(),d=loadDaily(),ms=msToNextDay(),next=`${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min`;
   const date=new Date(key+'T12:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
   const done=d&&d.S.over,p=done&&d.S.players[0];
   const daily=done
     ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="ht">${p.score} points</span><span class="hs">${p.cells}/${d.S.n*d.S.n} squares. See your result and share it.</span><span class="hm">Next grid in ${next}</span></button>`
-    :`<button class="hcard ac" id="daily"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap to continue.':'Compete with everyone: the same grid, one try.'}</span></button>`;
+    :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     ${daily}
@@ -1152,6 +1173,8 @@ function bind(){
   if($('uname')){const u=$('uname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveUser(u.value)};$('savename').onclick=()=>saveUser(u.value)}
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   app.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{screen=b.dataset.go;render()});
+  app.querySelectorAll('[data-dcell]').forEach(b=>b.onclick=()=>{const ci=+b.dataset.dcell;playDaily();
+    if(S&&S.daily&&!S.over&&S.cells[ci].o<0){ui.sel=ci;ui.query='';render()}});
   if($('home'))$('home').onclick=()=>{screen='home';setup.code='';clearGridParam();render()};
   if($('pass'))$('pass').onclick=pass;
   if($('giveup'))$('giveup').onclick=()=>{const b=$('giveup');if(b.dataset.armed){endGame()}else{b.dataset.armed='1';b.textContent='Tap again to confirm'}};
