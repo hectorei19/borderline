@@ -204,6 +204,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .home{display:flex;flex-direction:column;gap:12px}
 .hcard{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;text-align:left;background:var(--sheet);border:1px solid var(--rule);border-radius:8px;padding:16px;box-shadow:var(--shadow)}
 .hcard.ac{border:2px solid var(--sea);padding:15px}
+button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
 .hcard>.ht,.backline .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
 .hcard>.hs{color:var(--ink-2);font-size:1rem}
@@ -732,7 +733,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610152100';
+const APP_VERSION='202610152130';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1026,7 +1027,7 @@ function homeView(){
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     ${daily}
-    <button class="hcard ${done?'ac':''}" data-go="solo"><span class="ht">Solo</span><span class="hs">Train on unlimited grids, at your level.</span></button>
+    <button class="hcard" data-go="solo"><span class="ht">Solo</span><span class="hs">Train on unlimited grids, at your level.</span></button>
     <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, each on your own phone. 2 to 4 players.</span></button>
   </section>
   <section class="panel"><span class="label">Quick rules</span><ul class="rules">
