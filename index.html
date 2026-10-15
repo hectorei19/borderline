@@ -197,6 +197,8 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .big{font-family:var(--display);font-weight:900;font-size:2.6rem;line-height:1;margin:0;text-transform:uppercase;text-wrap:balance}
 .answers{display:flex;flex-direction:column;gap:6px}
 .answers p{margin:0;font-size:.95rem}
+.sharebtns{display:flex;flex-direction:column;gap:8px}
+.sharebtns a{display:block;text-align:center;text-decoration:none}
 .answers .hdr{font-weight:700;display:flex;align-items:baseline;gap:12px}
 .answers .nsol{margin-left:auto;color:var(--ink-2);font-weight:500;white-space:nowrap}
 .sharebox{font-family:var(--mono);font-size:.85rem;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:10px;user-select:all;margin:0}
@@ -594,7 +596,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151515';
+const APP_VERSION='202610151545';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -922,11 +924,25 @@ function shareText(){
 function gridLink(){return location.origin+location.pathname+'?grid='+encodeURIComponent(S.code)}
 function shareMessage(){return shareText()+'\n\nPlay this grid: '+gridLink()}
 // phones: the system share menu (WhatsApp, Telegram...); elsewhere: copy result and link
+// computers: our own panel with WhatsApp, Telegram and Copy (the Windows/Mac share menu rarely offers them)
+const TOUCH=matchMedia('(pointer:coarse)').matches;
 function shareResult(){const t=shareMessage();
-  // if copying is blocked, put the full message (with the link) in the result box and select it
-  const manual=()=>{const el=document.getElementById('share');if(el)el.textContent=t;selectShare();toast('Copy blocked here. The text is selected: copy it manually.')};
-  const copy=()=>{try{navigator.clipboard.writeText(t).then(()=>toast('Result and link copied. Paste them in WhatsApp or Telegram.','good'),manual)}catch(e){manual()}};
-  if(navigator.share){navigator.share({text:t}).catch(e=>{if(e&&e.name!=='AbortError')copy()})}else copy()}
+  if(navigator.share&&TOUCH){navigator.share({text:t}).catch(e=>{if(e&&e.name!=='AbortError')copyShare()})}
+  else{ui.sharing=true;drawLayer()}}
+function copyShare(){const t=shareMessage();
+  // if the clipboard API is blocked, put the full message (with the link) in the result box, select it
+  // and try the older copy command; if that fails too, the text stays selected for a manual copy
+  const manual=()=>{const el=document.getElementById('share');if(el)el.textContent=t;selectShare();
+    let ok=false;try{ok=document.execCommand('copy')}catch(e){}
+    if(ok)toast('Result and link copied.','good');else toast('Copy blocked here. The text is selected: copy it manually.')};
+  try{navigator.clipboard.writeText(t).then(()=>toast('Result and link copied.','good'),manual)}catch(e){manual()}}
+function shareView(){const enc=encodeURIComponent;
+  return `<div class="infoscrim" id="sharescrim"></div><div class="infobox" role="dialog" aria-modal="true" aria-labelledby="sht">
+    <h2 id="sht">Share your result</h2><p class="meta">Friends who open the link play this same grid.</p>
+    <div class="sharebtns"><a class="primary" href="https://wa.me/?text=${enc(shareMessage())}" target="_blank" rel="noopener">WhatsApp</a>
+    <a class="primary" href="https://t.me/share/url?url=${enc(gridLink())}&text=${enc(shareText())}" target="_blank" rel="noopener">Telegram</a>
+    <button class="ghost" id="sharecopy">Copy result and link</button></div>
+    <button class="linkbtn" id="shareclose">Close</button></div>`}
 function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
@@ -975,6 +991,7 @@ function drawLayer(){
       <p>Pass the phone to ${esc(p.name)}.${S.timer?` The ${S.timer}-second clock starts when you tap.`:''}</p>
       <div class="scores">${S.players.map((q,i)=>`<span class="chip ${i===S.turn?'on':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(q.name)} <b>${liveScore(i)}</b></span>`).join('')}</div>
       <button class="primary" id="ready">I'm ready</button></div>`}
+  if(ui.sharing&&S&&S.over)h+=shareView();
   if(ui.credits){
     h+=`<div class="infoscrim" id="credscrim"></div><div class="infobox helpbox credits" role="dialog" aria-modal="true" aria-labelledby="credt">
       <h2 id="credt">Credits</h2>
@@ -1033,6 +1050,10 @@ function drawLayer(){
   const had=document.getElementById('gq');const caret=had?had.selectionStart:null;
   layer.innerHTML=h;
   const rd=document.getElementById('ready');if(rd){rd.onclick=playerReady;rd.focus()}
+  const sc=document.getElementById('shareclose');
+  if(sc){const close=()=>{ui.sharing=false;drawLayer()};sc.onclick=close;document.getElementById('sharescrim').onclick=close;
+    layer.querySelectorAll('.sharebtns a').forEach(a=>a.addEventListener('click',close));
+    document.getElementById('sharecopy').onclick=()=>{close();copyShare()}}
   const ck=document.getElementById('credok');
   if(ck){const close=()=>{ui.credits=false;drawLayer()};ck.onclick=close;document.getElementById('credscrim').onclick=close}
   const hk=document.getElementById('helpok');
