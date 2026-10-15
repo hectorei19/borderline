@@ -197,8 +197,8 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .big{font-family:var(--display);font-weight:900;font-size:2.6rem;line-height:1;margin:0;text-transform:uppercase;text-wrap:balance}
 .answers{display:flex;flex-direction:column;gap:6px}
 .answers p{margin:0;font-size:.95rem}
-.answers .hdr{font-weight:700}
-.answers .nsol{color:var(--ink-2);white-space:nowrap}
+.answers .hdr{font-weight:700;display:flex;align-items:baseline;gap:12px}
+.answers .nsol{margin-left:auto;color:var(--ink-2);font-weight:500;white-space:nowrap}
 .sharebox{font-family:var(--mono);font-size:.85rem;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:10px;user-select:all;margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 @keyframes pop{from{transform:scale(.6);opacity:.2}to{transform:none;opacity:1}}
@@ -594,7 +594,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151500';
+const APP_VERSION='202610151515';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -943,7 +943,7 @@ function answersView(){
   if(ui.reveal<0)return `<p class="hint">Tap any square to see every country that fits it.</p>`;
   const ci=ui.reveal,n=S.n,i=Math.floor(ci/n),j=ci%n;
   const list=S.answers[ci].map(x=>C[x]);
-  return `<section class="panel answers"><p class="hdr">${colRef(j)}${rowRef(i)} · ${esc(CATS[S.rows[i]].label)} × ${esc(CATS[S.cols[j]].label)}</p><p>${list.map(c=>`<img class="mini" src="${FLAGS[c.c]}" alt=""> ${esc(c.n)}`).join(' · ')} <span class="nsol">(${list.length} possible answer${list.length===1?'':'s'})</span></p></section>`;
+  return `<section class="panel answers"><p class="hdr"><span>${colRef(j)}${rowRef(i)} · ${esc(CATS[S.rows[i]].label)} × ${esc(CATS[S.cols[j]].label)}</span><span class="nsol">${list.length} answer${list.length===1?'':'s'}</span></p><p>${list.map(c=>`<img class="mini" src="${FLAGS[c.c]}" alt=""> ${esc(c.n)}`).join(' · ')}</p></section>`;
 }
 
 /* ---- guess sheet ---- */
