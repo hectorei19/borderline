@@ -159,15 +159,11 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .infobox p{margin:0;font-size:1rem;color:var(--ink)}
 .infobox .meta{font-family:var(--mono);font-size:.75rem;color:var(--ink-2)}
 .infoscrim{position:fixed;inset:0;background:rgba(10,20,30,.45);z-index:30}
-/* guessed square: points in the top-left corner, possible answers (end of game) in the top-right, name centred at the bottom */
-.pts,.opts{position:absolute;top:0;font-family:var(--mono);font-size:.62rem;background:rgba(8,16,26,.78);color:#fff;padding:1px 4px;line-height:1.2;white-space:nowrap}
-.pts{left:0;border-radius:0 0 3px 0}
-.opts{right:0;border-radius:0 0 0 3px;color:#cfe}
+/* guessed square: points in the top-right corner, name centred at the bottom */
+.pts{position:absolute;top:0;right:0;border-radius:0 0 0 3px;font-family:var(--mono);font-size:.62rem;background:rgba(8,16,26,.78);color:#fff;padding:1px 4px;line-height:1.2;white-space:nowrap}
 .flagbox{position:relative}
 .cell .val{position:absolute;right:4px;bottom:3px;font-family:var(--mono);font-size:.66rem;color:var(--ink-2)}
-.b4 .pts,.b4 .opts{font-size:.56rem;padding:1px 2px}
-.b5 .cell .val{font-size:.55rem}
-.b5 .pts,.b5 .opts{font-size:.5rem;padding:0 1px}
+.b5 .cell .val,.b5 .pts{font-size:.55rem}
 .bd{margin:-6px 0 0 38px}.bdline{font-family:var(--mono);font-size:.75rem!important}
 .helpbox{max-height:calc(100% - 48px);overflow-y:auto;top:24px;transform:translateX(-50%)}
 .helpbox h3{font-size:.8rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2);margin:6px 0 0}
@@ -202,13 +198,14 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .answers{display:flex;flex-direction:column;gap:6px}
 .answers p{margin:0;font-size:.95rem}
 .answers .hdr{font-weight:700}
+.answers .nsol{color:var(--ink-2);white-space:nowrap}
 .sharebox{font-family:var(--mono);font-size:.85rem;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:10px;user-select:all;margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 @keyframes pop{from{transform:scale(.6);opacity:.2}to{transform:none;opacity:1}}
 .cell.new{animation:pop .35s cubic-bezier(.3,1.6,.6,1)}
 .cell.flag{padding:5px;background:transparent}
 .cell.flag::after{display:none}
-.flagbox{width:100%;height:100%;border-radius:4px;background-size:cover;background-position:center;background-repeat:no-repeat;display:flex;align-items:flex-end;overflow:hidden;border:4.5px solid var(--pc,var(--sea));box-shadow:0 0 0 2px var(--pc-soft,transparent)}
+.flagbox{width:100%;height:100%;border-radius:4px;background-size:cover;background-position:center;background-repeat:no-repeat;display:flex;align-items:flex-end;overflow:hidden;border:3px solid var(--pc,var(--sea));box-shadow:0 0 0 2px var(--pc-soft,transparent)}
 .flagbox .nm{width:100%;background:rgba(8,16,26,.66);color:#fff;padding:2px 3px 3px;font-weight:600;text-align:center;overflow-wrap:normal;line-height:1.05}
 .b5 .cell.flag{padding:3.5px}
 .c0{--pc:var(--p0);--pc-soft:color-mix(in srgb,var(--p0) 22%,transparent)}.c1{--pc:var(--p1);--pc-soft:color-mix(in srgb,var(--p1) 22%,transparent)}.c2{--pc:var(--p2);--pc-soft:color-mix(in srgb,var(--p2) 22%,transparent)}.c3{--pc:var(--p3);--pc-soft:color-mix(in srgb,var(--p3) 22%,transparent)}
@@ -597,7 +594,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151400';
+const APP_VERSION='202610151500';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -903,7 +900,7 @@ function gameView(){
       const ci=i*n+j,cell=S.cells[ci];
       const ref=colRef(j)+rowRef(i);
       if(cell.o>=0){const c=byCode[cell.c];
-        h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span>${S.over?`<span class="opts" title="${S.answers[ci].length} possible answers">/${S.answers[ci].length}</span>`:''}<span class="nm">${esc(c.n)}</span></span></button>`;
+        h+=`<button class="cell taken flag ${ui.fresh===ci?'new':''}" data-cell="${ci}" aria-label="${ref}: ${esc(c.n)}"><span class="flagbox ${S.mode==='solo'?'':'c'+cell.o}" style="background-image:url('${FLAGS[c.c]}')"><span class="pts">+${(cell.p||0)+(cell.sb||0)}</span><span class="nm">${esc(c.n)}</span></span></button>`;
       }else if(S.over){
         h+=`<button class="cell miss" data-cell="${ci}" aria-label="${ref}: show answers"><span class="nm">${S.answers[ci].length} possible</span></button>`;
       }else h+=`<button class="cell ${ui.sel===ci?'sel':''}" data-cell="${ci}" aria-label="Square ${ref}"><span class="plus"></span></button>`;
@@ -946,7 +943,7 @@ function answersView(){
   if(ui.reveal<0)return `<p class="hint">Tap any square to see every country that fits it.</p>`;
   const ci=ui.reveal,n=S.n,i=Math.floor(ci/n),j=ci%n;
   const list=S.answers[ci].map(x=>C[x]);
-  return `<section class="panel answers"><p class="hdr">${colRef(j)}${rowRef(i)} · ${esc(CATS[S.rows[i]].label)} × ${esc(CATS[S.cols[j]].label)}</p><p>${list.map(c=>`<img class="mini" src="${FLAGS[c.c]}" alt=""> ${esc(c.n)}`).join(' · ')}</p></section>`;
+  return `<section class="panel answers"><p class="hdr">${colRef(j)}${rowRef(i)} · ${esc(CATS[S.rows[i]].label)} × ${esc(CATS[S.cols[j]].label)}</p><p>${list.map(c=>`<img class="mini" src="${FLAGS[c.c]}" alt=""> ${esc(c.n)}`).join(' · ')} <span class="nsol">(${list.length} possible answer${list.length===1?'':'s'})</span></p></section>`;
 }
 
 /* ---- guess sheet ---- */
