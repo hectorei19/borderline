@@ -199,6 +199,8 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .answers p{margin:0;font-size:.95rem}
 .sharebtns{display:flex;flex-direction:column;gap:8px}
 .sharebtns a{display:block;text-align:center;text-decoration:none}
+.sep{border:0;border-top:1px solid var(--rule);margin:2px 0;width:100%}
+.dres{margin:0;font-size:1.05rem}
 .answers .hdr{font-weight:700;display:flex;align-items:baseline;gap:12px}
 .answers .nsol{margin-left:auto;color:var(--ink-2);font-weight:500;white-space:nowrap}
 .sharebox{font-family:var(--mono);font-size:.85rem;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:10px;user-select:all;margin:0}
@@ -458,6 +460,39 @@ let tick=null;
 
 // drop ?grid= from the address once used, so a reload does not bring the friend's grid back
 function clearGridParam(){try{const u=new URL(location.href);if(u.searchParams.has('grid')){u.searchParams.delete('grid');history.replaceState(null,'',u.pathname+u.search+u.hash)}}catch(e){}}
+/* ---- daily grid: one 3×3 Normal grid for everyone, new at midnight in Spain, one try per device ---- */
+const DAILY_N=3,DAILY_DIFF='normal',DAILY_FIRST='2026-10-15';
+const madrid=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+function madridParts(t){const o={};madrid.formatToParts(new Date(t)).forEach(p=>o[p.type]=p.value);return o}
+function todayKey(){const p=madridParts(now());return p.year+'-'+p.month+'-'+p.day}
+function dayNumber(key){return Math.round((Date.parse(key+'T00:00Z')-Date.parse(DAILY_FIRST+'T00:00Z'))/864e5)+1}
+function msToNextDay(){const p=madridParts(now());return (24*3600-(+p.hour*3600+ +p.minute*60+ +p.second))*1000}
+// the same seed for everyone on a given day; step on until the seed gives a grid that can be completed
+function dailySeed(key){let h=2166136261;for(const ch of 'borderline-daily-'+key){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return h%7962624}
+function loadDaily(){try{const d=JSON.parse(localStorage.getItem('bl-daily')||'null');return d&&d.date===todayKey()?d:null}catch(e){return null}}
+function saveDaily(){if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}}
+function playDaily(){
+  const saved=loadDaily();
+  if(saved){S=saved.S;ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};if(!S.over)startTurn();render();return}
+  const key=todayKey();let seed=dailySeed(key),g=generate(DAILY_N,seed,DAILY_DIFF),k=0;
+  while(!g&&k++<50){seed=(seed+1)%7962624;g=generate(DAILY_N,seed,DAILY_DIFF)}
+  if(!g){toast('Could not build today\'s grid. Try again later.','bad');return}
+  S={mode:'solo',daily:key,day:dayNumber(key),n:DAILY_N,seed,diff:DAILY_DIFF,code:makeCode(DAILY_N,seed,DAILY_DIFF),rows:g.rows,cols:g.cols,answers:g.answers,
+     cells:g.answers.map(()=>({o:-1,c:null})),used:[],players:[{name:setup.user||'You',score:0}],turn:0,
+     guesses:DAILY_N*DAILY_N+DAILY_N,timer:0,deadline:0,passes:0,over:false,wrong:0};
+  ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};
+  startTurn(true);render();
+}
+function dailyCard(){
+  const key=todayKey(),d=loadDaily(),ms=msToNextDay(),h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);
+  const date=new Date(key+'T12:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
+  let body;
+  if(d&&d.S.over){const p=d.S.players[0];
+    body=`<p class="dres"><b>${p.score} points</b> · ${p.cells}/${DAILY_N*DAILY_N} squares</p><button class="ghost" id="daily">See today's result</button><p class="hint">Next grid in ${h} h ${m} min.</p>`}
+  else if(d)body=`<button class="primary" id="daily">Continue today's grid</button><p class="hint">You started it already: one try per day.</p>`;
+  else body=`<button class="primary" id="daily">Play today's grid</button><p class="hint">The same ${DAILY_N} × ${DAILY_N} grid for everyone, new every day at midnight (Spain time). One try only.</p>`;
+  return `<div class="field daily"><span class="label">Daily grid · #${dayNumber(key)} · ${date}</span>${body}</div><hr class="sep"><span class="label">Unlimited</span>`;
+}
 // big or hard grids can take a second to build: show a note first so the screen does not look frozen
 function buildThenStart(){if(setup.n===5||setup.diff!=='normal')toast('Building a grid that can always be completed…');setTimeout(startGame,40)}
 function startGame(){
@@ -596,7 +631,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610151545';
+const APP_VERSION='202610151615';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -784,8 +819,8 @@ const pinStyle=i=>`background:var(--p${i})`;
 const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
-  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S?' · ':''):''}${S?esc(S.code)+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(S?gameView():(editingUser?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
-  bind();drawLayer();fitHeaders();
+  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(S?gameView():(editingUser?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
+  bind();drawLayer();fitHeaders();saveDaily();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
 // Keep header labels as large as possible: shrink only the ones that would not fit their square.
@@ -867,6 +902,7 @@ function setupView(){
   const vs=setup.mode==='versus',on=setup.mode==='online',pc=parseCode(setup.code),fg=pc&&{...pc,code:setup.code.trim().toUpperCase()};
   return `<section class="panel">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
+    ${dailyCard()}
     <div class="field"><span class="label">Mode</span>${seg('mode',[['solo','Solo'],['versus','Pass & play'],['online','Online']],setup.mode)}<p class="hint">${MHINT[setup.mode]}</p></div>
     ${vs?`<div class="field"><span class="label">Players</span>${seg('np',[[2,'2'],[3,'3'],[4,'4']],setup.names.length)}</div>`:''}
     ${fg&&!on?`<div class="field"><span class="label">Friend's grid</span><p class="hint" style="color:var(--ink);font-size:1rem"><b>${esc(fg.code)}</b> · ${fg.n} × ${fg.n} · ${fg.diff[0].toUpperCase()+fg.diff.slice(1)}. You play exactly the squares your friend played.</p><button class="ghost" id="nofg">Play a random grid instead</button></div>`:`
@@ -917,12 +953,13 @@ function gameView(){
 function shareText(){
   const n=S.n;let g='';
   for(let i=0;i<n;i++){for(let j=0;j<n;j++){const o=S.cells[i*n+j].o;g+=o<0?'⬜':(S.mode==='solo'?'🟩':['🟥','🟦','🟨','🟪'][o])}g+='\n'}
-  const head=S.mode==='solo'?`Borderline ${S.code} — ${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:`Borderline ${S.code} — `+S.players.map(p=>p.name+' '+p.score).join(', ');
+  const head=S.daily?`Borderline Daily #${S.day} — ${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:S.mode==='solo'?`Borderline ${S.code} —${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:`Borderline ${S.code} — `+S.players.map(p=>p.name+' '+p.score).join(', ');
   return head+'\n'+g.trim();
 }
 // link that opens this exact grid (?grid=4E-KQPMT), sent together with the result
-function gridLink(){return location.origin+location.pathname+'?grid='+encodeURIComponent(S.code)}
-function shareMessage(){return shareText()+'\n\nPlay this grid: '+gridLink()}
+// the daily grid links to the game itself, so friends use their own one try instead of replaying it as a free grid
+function gridLink(){return location.origin+location.pathname+(S.daily?'':'?grid='+encodeURIComponent(S.code))}
+function shareMessage(){return shareText()+'\n\n'+(S.daily?"Play today's grid: ":'Play this grid: ')+gridLink()}
 // phones: the system share menu (WhatsApp, Telegram...); elsewhere: copy result and link
 // computers: our own panel with WhatsApp, Telegram and Copy (the Windows/Mac share menu rarely offers them)
 const TOUCH=matchMedia('(pointer:coarse)').matches;
@@ -945,6 +982,8 @@ function shareView(){const enc=encodeURIComponent;
     <button class="linkbtn" id="shareclose">Close</button></div>`}
 function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
+  if(S.daily){const p=S.players[0],n=S.n,ms=msToNextDay();
+    return `<section class="panel"><span class="label">Daily grid #${S.day}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">Play unlimited</button></div></section>`}
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
     return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share sends your result with a link: friends who open it play this same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
@@ -1034,6 +1073,7 @@ function drawLayer(){
       <li><b>Easy</b>: ${DHINT.easy} The country list finds any part of a name. <i>Example: ${DEXAMPLE.easy}.</i></li>
       <li><b>Normal</b>: ${DHINT.normal} The country list shows names only and finds them by their first letters, so you need to know the answer. <i>Example: ${DEXAMPLE.normal}.</i></li>
       <li><b>Hard</b>: ${DHINT.hard} The country list works as in Normal. <i>Example: ${DEXAMPLE.hard}.</i></li>
+      <li><b>Daily grid</b>: one ${DAILY_N} × ${DAILY_N} Normal grid, the same for everyone, new every day at midnight (Spain time). You get one try; if you leave, you continue where you stopped.</li>
       <li>At the end, <b>Share</b> sends your result with a link, for example on WhatsApp or Telegram. Friends who open it play exactly your grid. The grid code shows the level: <b>4E-</b> easy, <b>4-</b> normal, <b>4H-</b> hard.</li></ul>
       <h3>Scoring</h3><ul>
       <li><b>Square points, 0 to ${SQ_MAX}</b>: the squares of each grid are ranked from hardest (fewest countries fit) to easiest (most countries fit), and the points go up in equal steps. The hardest square is worth ${SQ_MAX}. Every correct answer in a square earns the same points, and you discover them when the square is filled.</li>
@@ -1104,6 +1144,7 @@ function bind(){
   else if($('newg'))$('newg').onclick=()=>{clearInterval(tick);S=null;askingPlayers=false;setup.code='';render()};
   if($('again'))$('again').onclick=()=>{if(S.mode==='online'){onlineAct('rematch');return}setup.code='';buildThenStart()};
   if($('copy'))$('copy').onclick=shareResult;
+  if($('daily'))$('daily').onclick=playDaily;
   app.querySelectorAll('[data-info]').forEach(b=>{b.onclick=()=>{ui.info=+b.dataset.info;drawLayer()};b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();b.click()}}});
   app.querySelectorAll('[data-cell]').forEach(b=>b.onclick=()=>{
     const ci=+b.dataset.cell;
