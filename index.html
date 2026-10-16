@@ -731,12 +731,15 @@ function computeStats(hist,games){
   let maxStreak=0,run=0,prev=null;for(const k of days){const d=day(k);run=prev!==null&&d===prev+1?run+1:1;prev=d;maxStreak=Math.max(maxStreak,run)}
   const ds=dailyStatsFrom(hist);
   const solo=games.filter(g=>g.m==='s'),fr=games.filter(g=>g.m==='f');
-  const sum=a=>({played:a.length,best:best(a.map(g=>g.s)),avg:avg(a.map(g=>g.s)),perfect:a.filter(g=>g.c===g.n*g.n).length});
+  const sum=a=>{const sq=a.reduce((x,g)=>x+(g.c||0),0),all=a.reduce((x,g)=>x+g.n*g.n,0);
+    return {played:a.length,best:best(a.map(g=>g.s)),avg:avg(a.map(g=>g.s)),perfect:a.filter(g=>g.c===g.n*g.n).length,
+      squares:sq,acc:all?Math.round(sq/all*100):0}};
   const byDiff={};['easy','normal','hard'].forEach(d=>byDiff[d]=sum(solo.filter(g=>g.d===d)));
   const wins=fr.filter(g=>g.w===1).length;
   return {d:{played:days.length,streak:ds.streak,max:maxStreak,best:best(dv.map(e=>e.s||0)),avg:avg(dv.map(e=>e.s||0)),perfect:dv.filter(e=>e.c===(e.n||DAILY_N)*(e.n||DAILY_N)).length},
     s:{...sum(solo),byDiff},
-    f:{played:fr.length,wins,draws:fr.filter(g=>g.dr===1).length,pct:fr.length?Math.round(wins/fr.length*100):0,best:best(fr.map(g=>g.s))}}}
+    f:{played:fr.length,wins,draws:fr.filter(g=>g.dr===1).length,pct:fr.length?Math.round(wins/fr.length*100):0,best:best(fr.map(g=>g.s)),
+      avg:avg(fr.map(g=>g.s)),place:fr.length?Math.round(fr.reduce((x,g)=>x+(g.r||1),0)/fr.length*10)/10:0}}}
 let pubTimer=null;
 function publishSoon(){clearTimeout(pubTimer);pubTimer=setTimeout(publishProfile,1500)}
 function publishProfile(){if(!USER||!db||!PROFILE)return;
@@ -950,7 +953,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161830';
+const APP_VERSION='202610161900';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1221,10 +1224,10 @@ function statsView(){
     <span class="label">Today's grid</span>
     <div class="stgrid">${tile(D.played,'played')}${tile(D.streak,'streak')}${tile(D.max,'best streak')}${tile(D.best,'best score')}${tile(D.avg,'average')}${tile(D.perfect,'perfect grids')}</div>
     <span class="label">Solo</span>
-    <div class="stgrid">${tile(So.played,'games')}${tile(So.best,'best score')}${tile(So.avg,'average')}${tile(So.perfect,'perfect grids')}</div>
+    <div class="stgrid">${tile(So.played,'games')}${tile(So.best,'best score')}${tile(So.avg,'average')}${tile(So.perfect,'perfect grids')}${tile(So.acc===undefined?'–':So.acc+'%','accuracy')}${tile(So.squares===undefined?'–':So.squares,'squares')}</div>
     ${So.played?`<table class="sttab"><tr><th></th><th>Games</th><th>Best</th><th>Average</th></tr>${row('easy')}${row('normal')}${row('hard')}</table>`:''}
     <span class="label">With friends</span>
-    <div class="stgrid">${tile(F.played,'games')}${tile(F.wins,'wins')}${tile(F.pct+'%','win rate')}${tile(F.best,'best score')}</div>
+    <div class="stgrid">${tile(F.played,'games')}${tile(F.wins,'wins')}${tile(F.pct+'%','win rate')}${tile(F.best,'best score')}${tile(F.avg===undefined?'–':F.avg,'average')}${tile(F.place===undefined||!F.played?'–':String(F.place),'avg. place')}</div>
   </section>`}
 // welcome: sign in with Google (name kept in the account, ranking, synced stats) or play as a guest on this device
 function nameView(){
