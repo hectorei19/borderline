@@ -17,8 +17,8 @@
 :root{
   --paper:#E9EFEE; --sheet:#F7FAF9; --ink:#13243A; --ink-2:#4D5E6E; --rule:#B9C7C8; --sea:#0E7C86; --sea-soft:#D3E7E7;
   --bad:#B3261E; --good:#1F7A3E;
-  --p0:#D9482B; --p1:#2A62C9; --p2:#C58A00; --p3:#7B3FBF;
-  --p0-soft:#F6D9D1; --p1-soft:#D6E1F6; --p2-soft:#F3E6C2; --p3-soft:#E5D8F3;
+  --p0:#D9482B; --p1:#2A62C9; --p2:#C58A00; --p3:#7B3FBF; --p4:#2E8540; --p5:#8B5A2B;
+  --p0-soft:#F6D9D1; --p1-soft:#D6E1F6; --p2-soft:#F3E6C2; --p3-soft:#E5D8F3; --p4-soft:#D5EDDA; --p5-soft:#EEDFD0;
   --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
   --ui:"Barlow Semi Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -27,14 +27,14 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --paper:#0D1820; --sheet:#14232D; --ink:#E2ECEA; --ink-2:#97A9AF; --rule:#2B3E48; --sea:#4FC1C6; --sea-soft:#183A40;
   --bad:#FF8A80; --good:#7FD39A;
-  --p0:#FF7A5C; --p1:#79A5FF; --p2:#F2C14E; --p3:#C49BFF;
-  --p0-soft:#43231C; --p1-soft:#1F2D4A; --p2-soft:#3D321A; --p3-soft:#33264A;
+  --p0:#FF7A5C; --p1:#79A5FF; --p2:#F2C14E; --p3:#C49BFF; --p4:#6FD08C; --p5:#D2A06E;
+  --p0-soft:#43231C; --p1-soft:#1F2D4A; --p2-soft:#3D321A; --p3-soft:#33264A; --p4-soft:#1D3A26; --p5-soft:#3A2B1E;
   --shadow:0 1px 0 rgba(0,0,0,.3),0 10px 28px -12px rgba(0,0,0,.7); color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#0D1820; --sheet:#14232D; --ink:#E2ECEA; --ink-2:#97A9AF; --rule:#2B3E48; --sea:#4FC1C6; --sea-soft:#183A40;
   --bad:#FF8A80; --good:#7FD39A;
-  --p0:#FF7A5C; --p1:#79A5FF; --p2:#F2C14E; --p3:#C49BFF;
-  --p0-soft:#43231C; --p1-soft:#1F2D4A; --p2-soft:#3D321A; --p3-soft:#33264A;
+  --p0:#FF7A5C; --p1:#79A5FF; --p2:#F2C14E; --p3:#C49BFF; --p4:#6FD08C; --p5:#D2A06E;
+  --p0-soft:#43231C; --p1-soft:#1F2D4A; --p2-soft:#3D321A; --p3-soft:#33264A; --p4-soft:#1D3A26; --p5-soft:#3A2B1E;
   --shadow:0 1px 0 rgba(0,0,0,.3),0 10px 28px -12px rgba(0,0,0,.7); color-scheme:dark}
 *{box-sizing:border-box}
 html,body{min-height:100%}
@@ -130,9 +130,9 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .cell.taken{cursor:default}
 .cell .cnt{position:absolute;right:4px;bottom:3px;font-family:var(--mono);font-size:.6rem;color:var(--ink-2)}
 .cell.miss .nm{color:var(--ink-2);font-weight:500}
-.o0{background:var(--p0-soft)}.o1{background:var(--p1-soft)}.o2{background:var(--p2-soft)}.o3{background:var(--p3-soft)}
-.o0::after,.o1::after,.o2::after,.o3::after{content:"";position:absolute;left:0;top:0;width:6px;height:6px;border-radius:0 0 6px 0}
-.o0::after{background:var(--p0)}.o1::after{background:var(--p1)}.o2::after{background:var(--p2)}.o3::after{background:var(--p3)}
+.o0{background:var(--p0-soft)}.o1{background:var(--p1-soft)}.o2{background:var(--p2-soft)}.o3{background:var(--p3-soft)}.o4{background:var(--p4-soft)}.o5{background:var(--p5-soft)}
+.o0::after,.o1::after,.o2::after,.o3::after,.o4::after,.o5::after{content:"";position:absolute;left:0;top:0;width:6px;height:6px;border-radius:0 0 6px 0}
+.o0::after{background:var(--p0)}.o1::after{background:var(--p1)}.o2::after{background:var(--p2)}.o3::after{background:var(--p3)}.o4::after{background:var(--p4)}.o5::after{background:var(--p5)}
 .b4 .hd{font-size:.74rem}.b4 .cell .fl{font-size:1.35rem}.b4 .cell .nm{font-size:.66rem}
 .b5 .hd{font-size:.66rem;padding:5px 3px}.b5 .cell .fl{font-size:1.15rem}.b5 .cell .nm{font-size:.58rem}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -208,6 +208,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
 .hrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.c4{--pc:var(--p4);--pc-soft:color-mix(in srgb,var(--p4) 22%,transparent)}.c5{--pc:var(--p5);--pc-soft:color-mix(in srgb,var(--p5) 22%,transparent)}
 .qrules{gap:6px}.qrules .hint{font-size:1rem}
 .userline{flex-wrap:wrap}
 .stats .label{margin-top:4px}
@@ -953,7 +954,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161915';
+const APP_VERSION='202610162000';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -989,13 +990,13 @@ async function joinRoom(raw){
       if(r.v&&r.v!==APP_VERSION){why='version';return}
       if(r.players[ME]){r.players[ME].name=setup.user;r.players[ME].on=true;if(USER)r.players[ME].uid=USER.uid;return r}
       if(r.status!=='lobby'){why='started';return}
-      if(Object.keys(r.players).length>=4){why='full';return}
+      if(Object.keys(r.players).length>=6){why='full';return}
       r.players[ME]={name:setup.user,t:Date.now()+offset,on:true,...(USER?{uid:USER.uid}:{})};return r;
     });
     const val=res.snapshot.val();
     if(!val){toast('No room called '+code+'. Check the code.','bad');return}
     if(!res.committed||!val.players||!val.players[ME]){
-      toast(why==='version'?'You and the host have different versions of the game. Both of you reload the page, then try again.':why==='full'?'Room '+code+' already has 4 players.':why==='started'?'That game has already started. Ask the host for a rematch.':'Could not join '+code+'.','bad');return}
+      toast(why==='version'?'You and the host have different versions of the game. Both of you reload the page, then try again.':why==='full'?'Room '+code+' already has 6 players.':why==='started'?'That game has already started. Ask the host for a rematch.':'Could not join '+code+'.','bad');return}
     listenRoom(code);
   }catch(e){console.error(e);toast('Could not join. Check the connection and try again.','bad')}
   finally{joining=false}
@@ -1115,7 +1116,7 @@ function lobbyView(){
     <pre class="sharebox" id="linkbox">${esc(link)}</pre>
     <button class="ghost" id="copylink">Copy link</button>
     ${versionOK(r)?'':'<p class="hint" style="color:var(--bad)">This room was made with a different version of the game. Reload the page; if it still shows this, ask the host to reload and create a new room.</p>'}
-    <span class="label">Players ${order.length}/4</span>
+    <span class="label">Players ${order.length}/6</span>
     <div class="players">${order.map((pid,i)=>{const p=r.players[pid];return `<div class="lp ${p.on===false?'off':''}" ${p.uid?`data-stats="${esc(p.uid)}" role="button" tabindex="0"`:''}><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)}<span class="tag">${[pid===r.host?'host':'',pid===ME?'you':'',p.on===false?'offline':''].filter(Boolean).join(' · ')}</span></div>`}).join('')}</div>
     <p class="hint">${r.cfg.n} × ${r.cfg.n} grid · ${DLABEL[r.cfg.diff||'normal']} · ${r.cfg.timer?r.cfg.timer+' s per turn':'no turn timer'}</p>
     ${isHost?`<button class="primary" id="ostart" ${order.length<2?'disabled style="opacity:.5"':''}>${order.length<2?'Waiting for players…':'Start game'}</button>`:`<p class="hint">Waiting for the host to start the game.</p>`}
@@ -1192,7 +1193,7 @@ try{document.fonts&&document.fonts.ready.then(()=>fitHeaders())}catch(e){}
 addEventListener('resize',()=>{clearTimeout(fitHeaders.t);fitHeaders.t=setTimeout(fitHeaders,120)});
 function onTickVisual(){const left=S.deadline-now();const bar=document.querySelector('.tbar');const sub=document.getElementById('tleft');if(bar)bar.style.width=Math.max(0,left/(S.timer*1000)*100)+'%';if(sub)sub.textContent=Math.max(0,Math.ceil(left/1000))+'s'}
 
-const MHINT={solo:'1 player.',online:'2–4 players, each on their own phone.'};
+const MHINT={solo:'1 player.',online:'2–6 players, each on their own phone.'};
 const DLABEL={easy:'Easy',normal:'Normal',hard:'Hard'};
 const DHINT={
   easy:'For everyone. Well-known topics, lots of possible answers.',
@@ -1305,7 +1306,7 @@ function homeView(){
       <small class="tdiag">${(()=>{const a=ACCT_TODAY,hh=loadHist()[key],l=loadDaily();return `version ${APP_VERSION} · this device ${ME}<br>account today: ${USER?(a?`device ${a.d||'none'}, ${a.s} pts, ${a.f===1?'finished':a.f===0?'started':'old format'}, full game ${a.j?'yes':'no'}`:'nothing'):'not signed in'}<br>this device today: ${l?(l.S.over?l.S.players[0].score+' pts, finished':'in progress'):'nothing'} · stats today: ${hh?hh.s+' pts':'none'}`})()}</small></div>`:''}
     <div class="hrow">
     <button class="hcard" data-go="solo"><span class="ht">Solo</span><span class="hs">Train on unlimited grids, at your level.</span></button>
-    <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, 2 to 4 players.</span></button>
+    <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, 2 to 6 players.</span></button>
     </div>
   </section>
   <section class="panel qrules"><span class="label">Quick rules</span><p class="hint">Name a country that fits its row <em>and</em> its column, each country once per grid. Tap <span class="ib">i</span> to see what a category means. Full rules in <b>How to play</b>.</p></section>`;
@@ -1367,7 +1368,7 @@ function gameView(){
 }
 function shareText(){
   const n=S.n;let g='';
-  for(let i=0;i<n;i++){for(let j=0;j<n;j++){const o=S.cells[i*n+j].o;g+=o<0?'⬜':(S.mode==='solo'?'🟩':['🟥','🟦','🟨','🟪'][o])}g+='\n'}
+  for(let i=0;i<n;i++){for(let j=0;j<n;j++){const o=S.cells[i*n+j].o;g+=o<0?'⬜':(S.mode==='solo'?'🟩':['🟥','🟦','🟨','🟪','🟩','🟫'][o])}g+='\n'}
   const head=S.daily?`Borderline Daily #${S.day} — ${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:S.mode==='solo'?`Borderline ${S.code} —${S.players[0].score} pts (${S.players[0].cells}/${n*n})`:`Borderline ${S.code} — `+S.players.map(p=>p.name+' '+p.score).join(', ');
   return head+'\n'+g.trim();
 }
@@ -1491,7 +1492,7 @@ function drawLayer(){
       <h3>Modes</h3><ul>
       <li><b>Today's grid</b>: one ${DAILY_N} × ${DAILY_N} Normal grid, the same for everyone, new every day at midnight CET. You get one try; if you leave, you continue where you stopped.</li>
       <li><b>Solo</b>: unlimited grids on your own, with a few more guesses than there are squares. Aim for the highest score.</li>
-      <li><b>With friends</b>: 2 to 4 players online, each on their own phone. The host creates a room and shares its 4-letter code or link; the others join with it.</li></ul>
+      <li><b>With friends</b>: 2 to 6 players online, each on their own phone. The host creates a room and shares its 4-letter code or link; the others join with it.</li></ul>
       <h3>Difficulty</h3><ul>
       <li><b>Easy</b>: ${DHINT.easy} The country list finds any part of a name. <i>Example: ${DEXAMPLE.easy}.</i></li>
       <li><b>Normal</b>: ${DHINT.normal} The country list shows names only and finds them by their first letters, so you need to know the answer. <i>Example: ${DEXAMPLE.normal}.</i></li>
