@@ -24,7 +24,7 @@
         ".write": "auth != null && auth.uid === $uid",
         "daily": {
           "$date": {
-            ".validate": "$date.matches(/^\\d{4}-\\d{2}-\\d{2}$/) && newData.hasChildren(['s', 'c', 'n']) && newData.child('s').isNumber() && newData.child('c').isNumber() && newData.child('n').isNumber()"
+            ".validate": "$date.matches(/^\\d{4}-\\d{2}-\\d{2}$/) && newData.hasChildren(['s', 'c', 'n', 'd']) && newData.child('s').isNumber() && newData.child('c').isNumber() && newData.child('n').isNumber() && newData.child('d').isString() && (!data.exists() || !data.child('d').exists() || data.child('d').val() === newData.child('d').val())"
           }
         }
       }
