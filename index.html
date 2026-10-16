@@ -649,12 +649,21 @@ function saveHist(h){try{localStorage.setItem('bl-hist',JSON.stringify(h))}catch
 const dailyEntry=(s,f)=>({s:s.players[0].score||0,c:s.players[0].cells||0,n:s.n,g:s.cells.map(c=>c.o>=0?'1':'0').join(''),d:ME,f});
 // with an account, today's try belongs to the first device that started it (ACCT_TODAY is the account's entry for today)
 const otherDevice=e=>!!e&&e.d!==ME;
-function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1);
-  const old=h[s.daily];if(old&&old.s===e.s&&old.c===e.c&&old.f===1){submitLB(s.daily,old);return}
-  if(USER&&s.daily===todayKey()&&otherDevice(ACCT_TODAY))return; // the account already used today's try elsewhere
-  h[s.daily]=e;saveHist(h);
-  if(USER&&db)db.ref('users/'+USER.uid+'/daily/'+s.daily).transaction(cur=>!cur||cur.d===ME?e:undefined).catch(()=>{});
+// an account entry saved before devices were recorded (no d) with the same result counts as this device's own
+const legacyMine=(cur,e)=>!!cur&&!cur.d&&cur.s===e.s&&cur.c===e.c;
+let dailyUp='';
+function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1),today=s.daily===todayKey();
+  if(USER&&today&&otherDevice(ACCT_TODAY)&&!legacyMine(ACCT_TODAY,e))return; // the account already used today's try elsewhere
+  const old=h[s.daily],same=old&&old.s===e.s&&old.c===e.c&&old.f===1&&old.d===ME;
+  if(!same){h[s.daily]=e;saveHist(h)}
+  // the account keeps the whole finished game (j), so every device of the account shows the same grid
+  if(USER&&db&&today&&dailyUp!==USER.uid+s.daily&&!(ACCT_TODAY&&ACCT_TODAY.d===ME&&ACCT_TODAY.f===1&&ACCT_TODAY.j)){
+    dailyUp=USER.uid+s.daily;const full={...e,j:JSON.stringify(s)};
+    db.ref('users/'+USER.uid+'/daily/'+s.daily).transaction(cur=>!cur||cur.d===ME||legacyMine(cur,e)?full:undefined).catch(()=>{dailyUp=''})}
   submitLB(s.daily,e)}
+// another device of the account finished today's grid: take its whole game, so this device shows exactly the same
+function adoptDaily(a){if(!a||!otherDevice(a)||a.f!==1||!a.j)return;const loc=loadDaily();if(loc&&loc.S.over)return;
+  try{const s=JSON.parse(a.j);if(s&&s.daily===todayKey()&&s.over){localStorage.setItem('bl-daily',JSON.stringify({date:s.daily,S:s}));if(S&&S.daily&&!S.over)S=null}}catch(e){}}
 /* ---- daily ranking: leaderboard/<date>/<uid> = {name, s, c, t}; anyone can read it, each account
    writes its own result once (Firebase rules refuse a second write) ---- */
 let LB=null,lbRef=null,lbDate=null,lbSent='';
@@ -853,7 +862,7 @@ const AUTH_OK=FB_OK&&typeof firebase.auth==='function';
 function watchToday(){if(acctRef){acctRef.off();acctRef=null}ACCT_TODAY=null;if(!USER||!db||TESTDAY)return;
   acctRef=db.ref('users/'+USER.uid+'/daily/'+todayKey());
   acctRef.on('value',s=>{ACCT_TODAY=s.val();
-    if(otherDevice(ACCT_TODAY)){const h=loadHist();h[todayKey()]=ACCT_TODAY;saveHist(h)}
+    if(otherDevice(ACCT_TODAY)){const h=loadHist(),{j,...entry}=ACCT_TODAY;h[todayKey()]=entry;saveHist(h);adoptDaily(ACCT_TODAY)}
     if(!S||S.daily)render()})}
 function initAuth(){if(!AUTH_OK||!initFB())return;
   firebase.auth().onAuthStateChanged(u=>{USER=u||null;watchToday();if(USER)syncHist();render()});
@@ -868,14 +877,15 @@ function signOut(){if(AUTH_OK)firebase.auth().signOut()}
 // a day already in the account always wins (one try per account), days only on this device are uploaded
 function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/daily');
   ref.once('value').then(snap=>{const remote=snap.val()||{},local=loadHist(),up={};
-    for(const [k,v] of Object.entries(remote))local[k]=v;
+    for(const [k,v] of Object.entries(remote)){const {j,...r}=v;local[k]=r} // the stats don't need the whole game (j)
+    adoptDaily(remote[todayKey()]);
     for(const [k,v] of Object.entries(local))if(!remote[k])up[k]={...v,d:v.d||ME,g:v.g||'',f:v.f===0?0:1};
     const t=up[todayKey()]||local[todayKey()];if(t)submitLB(todayKey(),t); // a game finished here before signing in joins the ranking
     saveHist(local);if(Object.keys(up).length)ref.update(up).catch(()=>{});render()}).catch(()=>{})}
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161330';
+const APP_VERSION='202610161430';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
