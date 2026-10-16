@@ -207,6 +207,10 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .hcard.ac{border:2px solid var(--sea);padding:15px}
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
+.corner.dnum{flex-direction:column;gap:2px;padding:4px}
+.corner.dnum .dl{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2)}
+.corner.dnum .dn{font-family:var(--display);font-weight:900;font-size:2rem;line-height:.9;color:var(--sea);letter-spacing:.01em}
+.b5 .corner.dnum .dn,.corner.dnum .dn.long{font-size:1.45rem}
 .hrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .c4{--pc:var(--p4);--pc-soft:color-mix(in srgb,var(--p4) 22%,transparent)}.c5{--pc:var(--p5);--pc-soft:color-mix(in srgb,var(--p5) 22%,transparent)}
 .qrules{gap:6px}.qrules .hint{font-size:1rem}
@@ -954,7 +958,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610162000';
+const APP_VERSION='202610162030';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1266,11 +1270,14 @@ function confirmPlayers(){
 // home: three ways to play. 'solo' and 'friends' are the settings screens behind two of them
 let screen='home';
 const screenFor=s=>!s||s.daily?'home':s.mode==='solo'?'solo':'friends';
+// top-left corner of a board: the daily grid shows its number (GRID #3), other games the Borderline logo
+const cornerHTML=day=>day?`<div class="corner dnum" aria-label="Grid number ${day}"><span class="dl">Grid</span><span class="dn${day>=100?' long':''}">#${day}</span></div>`
+  :`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
 // today's grid shown open on the home screen: tapping a square starts (or continues) the daily game there
 function dailyBoard(saved){
   const dg=saved?null:dailyGrid();if(!saved&&!dg)return '';
   const rows=saved?saved.rows:dg.g.rows,cols=saved?saved.cols:dg.g.cols,n=cols.length;
-  let h=`<div class="board-wrap dboard"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))"><div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
+  let h=`<div class="board-wrap dboard"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">${cornerHTML(dayNumber(todayKey()))}`;
   cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}</span><span class="ht">${titleWithInfo(CATS[k].short)}</span></div>`);
   rows.forEach((rk,i)=>{
     h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}</span><span class="ht">${titleWithInfo(CATS[rk].short)}</span></div>`;
@@ -1346,7 +1353,7 @@ function gameView(){
   if(S.mode!=='solo')h+=`<div class="scores">${S.players.map((p,i)=>`<span class="chip ${!S.over&&i===S.turn?'on':''} ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)} <b>${S.over?p.score:liveScore(i)}</b></span>`).join('')}</div>`;
   if(S.over)h+=resultsView();
   h+=`<div class="board-wrap"><div class="board b${n}" lang="en" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">`;
-  h+=`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
+  h+=cornerHTML(S.daily?S.day:0);
   S.cols.forEach((k,j)=>h+=`<div class="hd col" data-info="${k}" role="button" tabindex="0" aria-label="${esc(CATS[k].label)}: explain"><span class="ref">${colRef(j)}</span><span class="ht">${titleWithInfo(CATS[k].short)}</span></div>`);
   S.rows.forEach((rk,i)=>{
     h+=`<div class="hd rowh" data-info="${rk}" role="button" tabindex="0" aria-label="${esc(CATS[rk].label)}: explain"><span class="ref">${rowRef(i)}</span><span class="ht">${titleWithInfo(CATS[rk].short)}</span></div>`;
