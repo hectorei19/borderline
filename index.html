@@ -245,7 +245,7 @@ button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--
 .orline{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:.9rem}
 .orline::before,.orline::after{content:"";flex:1;border-top:1px solid var(--rule)}
 .acct{margin-left:auto;font-family:var(--mono);font-size:.75rem;color:var(--good)}
-.userline #signin{margin-left:auto}
+.userline .uright{margin-left:auto;display:flex;align-items:center;gap:8px}
 .hrow .hcard>.ht{font-size:1.4rem}
 .dsum{display:flex;align-items:center;gap:16px;margin:4px 0}
 .dsq{display:grid;gap:4px;width:88px;flex:none}
@@ -1031,7 +1031,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610162215';
+const APP_VERSION='202610162240';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1224,7 +1224,8 @@ const pinStyle=i=>`background:var(--p${i})`;
 const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
-  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span><button class="helpbtn" id="menu" aria-haspopup="true" aria-expanded="${ui.menu?'true':'false'}">☰ Menu</button></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(screen==='stats'?statsView():screen==='archive'?archiveView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
+  const body=screen==='stats'?statsView():screen==='archive'?archiveView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView())));
+  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><span class="coord">${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span>${body.includes('id="menu"')?'':menuBtn()}</header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+body;
   bind();drawLayer();fitHeaders();saveDaily();recordGame();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
@@ -1380,7 +1381,7 @@ function homeView(){
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}
-      ${AUTH_OK?(USER?`<button class="ghost" id="signout">Sign out</button>`:`<button class="ghost" id="signin">Sign in to sync stats</button>`):''}</div>
+      ${AUTH_OK?(USER?`<button class="ghost" id="signout">Sign out</button>`:`<span class="uright"><button class="ghost" id="signin">Sign in to sync stats</button>`):''}${AUTH_OK&&!USER?'':'<span class="uright">'}${menuBtn()}</span></div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button>
       <small class="tdiag">${(()=>{const a=ACCT_TODAY,hh=loadHist()[key],l=loadDaily();return `version ${APP_VERSION} · this device ${ME}<br>account today: ${USER?(a?`device ${a.d||'none'}, ${a.s} pts, ${a.f===1?'finished':a.f===0?'started':'old format'}, full game ${a.j?'yes':'no'}`:'nothing'):'not signed in'}<br>this device today: ${l?(l.S.over?l.S.players[0].score+' pts, finished':'in progress'):'nothing'} · stats today: ${hh?hh.s+' pts':'none'}`})()}</small></div>`:''}
@@ -1508,11 +1509,12 @@ function matches(q){
   for(const c of C){if(c.ak.some(a=>a.startsWith(k))||c.k.startsWith(k))starts.push(c);else if(easy&&c.k.includes(k))inside.push(c)}
   return starts.concat(inside).slice(0,8);
 }
+const menuBtn=()=>`<button class="helpbtn" id="menu" aria-haspopup="true" aria-expanded="${ui.menu?'true':'false'}">☰ Menu</button>`;
 function drawLayer(){
   let h='';
   // header menu: How to play, Archive, My stats, Credits, sign in/out
   if(ui.menu){const it=(k,label)=>`<button class="mitem" data-menu="${k}">${label}</button>`;
-    h+=`<div class="menuscrim" id="menuscrim"></div><nav class="menubox" aria-label="Menu">${it('help','How to play')}${it('archive','Archive')}${it('stats','My stats')}${it('credits','Credits &amp; data sources')}${AUTH_OK?(USER?it('signout','Sign out'):it('signin','Sign in with Google')):''}</nav>`}
+    h+=`<div class="menuscrim" id="menuscrim"></div><nav class="menubox" aria-label="Menu" style="top:${Math.round(((m=>m?m.getBoundingClientRect().bottom:54)(document.getElementById('menu')))+4)}px">${it('help','How to play')}${it('archive','Archive')}${it('stats','My stats')}${it('credits','Credits &amp; data sources')}${AUTH_OK?(USER?it('signout','Sign out'):it('signin','Sign in with Google')):''}</nav>`}
   if(S&&!S.over&&ui.sel>=0){
     const n=S.n,i=Math.floor(ui.sel/n),j=ui.sel%n;
     const res=matches(ui.query);
