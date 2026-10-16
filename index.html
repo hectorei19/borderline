@@ -206,6 +206,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .hcard.ac{border:2px solid var(--sea);padding:15px}
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
+.testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1.5px dashed var(--bad);border-radius:6px;font-family:var(--mono);font-size:.8rem;color:var(--bad)}
 .hcard>.ht,.backline .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
 .hcard>.hs{color:var(--ink-2);font-size:1rem}
 .hcard>.hm{font-family:var(--mono);font-size:.75rem;color:var(--sea);letter-spacing:.04em}
@@ -600,7 +601,10 @@ function clearGridParam(){try{const u=new URL(location.href);if(u.searchParams.h
 const DAILY_N=4,DAILY_DIFF='normal',DAILY_FIRST='2026-10-15';
 const madrid=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 function madridParts(t){const o={};madrid.formatToParts(new Date(t)).forEach(p=>o[p.type]=p.value);return o}
-function todayKey(){const p=madridParts(now());return p.year+'-'+p.month+'-'+p.day}
+// hidden test mode: add ?test to the address to replay today's grid; ?test&day=2026-11-20 plays another day's grid
+const TESTQ=(()=>{try{return new URLSearchParams(location.search)}catch(e){return new URLSearchParams()}})();
+const TEST=TESTQ.has('test'),TESTDAY=TEST&&/^\d{4}-\d{2}-\d{2}$/.test(TESTQ.get('day')||'')?TESTQ.get('day'):null;
+function todayKey(){if(TESTDAY)return TESTDAY;const p=madridParts(now());return p.year+'-'+p.month+'-'+p.day}
 function dayNumber(key){return Math.round((Date.parse(key+'T00:00Z')-Date.parse(DAILY_FIRST+'T00:00Z'))/864e5)+1}
 function msToNextDay(){const p=madridParts(now());return (24*3600-(+p.hour*3600+ +p.minute*60+ +p.second))*1000}
 // the same seed for everyone on a given day; step on until the seed gives a grid that can be completed
@@ -771,7 +775,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610152230';
+const APP_VERSION='202610160900';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1065,6 +1069,7 @@ function homeView(){
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     ${daily}
+    ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button></div>`:''}
     <button class="hcard" data-go="solo"><span class="ht">Solo</span><span class="hs">Train on unlimited grids, at your level.</span></button>
     <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, each on your own phone. 2 to 4 players.</span></button>
   </section>
@@ -1316,6 +1321,7 @@ function bind(){
   if($('uname')){const u=$('uname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveUser(u.value)};$('savename').onclick=()=>saveUser(u.value)}
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   app.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{screen=b.dataset.go;render()});
+  if($('dreset'))$('dreset').onclick=()=>{try{localStorage.removeItem('bl-daily')}catch(e){}dailyCache=null;S=null;toast('Today\'s grid reset (test mode).','good');render()};
   app.querySelectorAll('[data-dcell]').forEach(b=>b.onclick=()=>{const ci=+b.dataset.dcell;playDaily();
     if(S&&S.daily&&!S.over&&S.cells[ci].o<0){ui.sel=ci;ui.query='';render()}});
   if($('home'))$('home').onclick=()=>{screen='home';setup.code='';clearGridParam();render()};
