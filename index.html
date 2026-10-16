@@ -208,7 +208,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
 .menuscrim{position:fixed;inset:0;z-index:28}
-.menubox{position:fixed;z-index:29;top:calc(58px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:min(560px,100%);padding:0 16px;display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.menubox{position:fixed;z-index:29;top:calc(58px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:min(560px,100%);padding:0 16px;display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}
 .menubox .mitem{pointer-events:auto;width:min(280px,100%);text-align:left;background:var(--sheet);border:1px solid var(--rule);border-top-width:0;padding:13px 16px;font-weight:600;font-size:1rem}
 .menubox .mitem:first-child{border-top-width:1px;border-radius:8px 8px 0 0}
 .menubox .mitem:last-child{border-radius:0 0 8px 8px;box-shadow:var(--shadow)}
@@ -1031,7 +1031,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610162130';
+const APP_VERSION='202610162215';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1224,7 +1224,7 @@ const pinStyle=i=>`background:var(--p${i})`;
 const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
-  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="menu" aria-haspopup="true" aria-expanded="${ui.menu?'true':'false'}">☰ Menu</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(screen==='stats'?statsView():screen==='archive'?archiveView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
+  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span><button class="helpbtn" id="menu" aria-haspopup="true" aria-expanded="${ui.menu?'true':'false'}">☰ Menu</button></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(screen==='stats'?statsView():screen==='archive'?archiveView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
   bind();drawLayer();fitHeaders();saveDaily();recordGame();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
@@ -1379,8 +1379,8 @@ function homeView(){
     :other?doneCard(other.f===0?'started on another device':'played on another device',other.n||DAILY_N,[...(other.g||'').padEnd((other.n||DAILY_N)**2,'0')].map(x=>x==='1'),other.s||0,other.c||0,other.f===0?'You started it on another device with this account. One try per account.':'You played it on another device with this account.')
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
-    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}<button class="ghost" id="mystats">Stats</button>
-      ${AUTH_OK?(USER?`<span class="acct" title="${esc(USER.email||'')}">Stats synced</span><button class="ghost" id="signout">Sign out</button>`:`<button class="ghost" id="signin">Sign in to sync stats</button>`):''}</div>
+    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}
+      ${AUTH_OK?(USER?`<button class="ghost" id="signout">Sign out</button>`:`<button class="ghost" id="signin">Sign in to sync stats</button>`):''}</div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button>
       <small class="tdiag">${(()=>{const a=ACCT_TODAY,hh=loadHist()[key],l=loadDaily();return `version ${APP_VERSION} · this device ${ME}<br>account today: ${USER?(a?`device ${a.d||'none'}, ${a.s} pts, ${a.f===1?'finished':a.f===0?'started':'old format'}, full game ${a.j?'yes':'no'}`:'nothing'):'not signed in'}<br>this device today: ${l?(l.S.over?l.S.players[0].score+' pts, finished':'in progress'):'nothing'} · stats today: ${hh?hh.s+' pts':'none'}`})()}</small></div>`:''}
