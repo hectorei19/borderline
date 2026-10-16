@@ -113,7 +113,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 /* letter and title travel together (no gap); all squares of the same header line share one top offset,
    so A, B, C (and 1, 2, 3) sit at the same height. The offset is set in fitHeaders(). */
 .board .hd.col,.board .hd.rowh{justify-content:flex-start;gap:1px}
-.hd .ht .ib{display:inline-block;margin-left:0;width:1.05em;height:1.05em;line-height:.95em;text-align:center;font-size:.8em;vertical-align:.08em;white-space:nowrap}
+.hd .ht .ib{display:inline-block;margin-left:0;margin-right:0;width:1.05em;height:1.05em;line-height:.95em;text-align:center;font-size:.8em;vertical-align:.08em;white-space:nowrap}
 .board .hd .ht{hyphens:auto;-webkit-hyphens:auto}
 .board .hd.col,.board .hd.rowh{align-items:center;text-align:center}
 .board .hd .ht{text-align:center}
@@ -153,7 +153,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 
 .hd[data-info]{cursor:pointer}
 .hd[data-info]:hover{background:var(--sea-soft)}
-.ib{display:inline-flex;align-items:center;justify-content:center;width:1.25em;height:1.25em;margin-left:.35em;border:1px solid currentColor;border-radius:50%;font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:.95em;line-height:1;vertical-align:middle;color:var(--sea)}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:1.25em;height:1.25em;margin:0 .35em;border:1px solid currentColor;border-radius:50%;font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:.95em;line-height:1;vertical-align:middle;color:var(--sea)}
 .qcat{background:transparent;border:0;padding:0;font-weight:600;font-size:inherit;text-align:left;display:inline-flex;align-items:center}
 .infobox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:31;width:min(420px,calc(100% - 32px));background:var(--sheet);border:1.5px solid var(--ink);border-radius:8px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:12px}
 .infobox h2{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.6rem;line-height:1.05;margin:0;text-wrap:balance}
@@ -903,7 +903,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161700';
+const APP_VERSION='202610161715';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
