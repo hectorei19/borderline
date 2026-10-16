@@ -825,7 +825,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161100';
+const APP_VERSION='202610161130';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1113,6 +1113,7 @@ function homeView(){
   const key=todayKey(),d=loadDaily(),ms=msToNextDay(),next=`${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min`;
   const date=new Date(key+'T12:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
   const done=d&&d.S.over,p=done&&d.S.players[0];
+  if(done)recordDaily(d.S); // also counts a game finished before stats existed, or on a device that was offline
   const daily=done
     // played: green squares for the answers you got, grey for the rest (like the shared result); tap to see the full grid
     ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="dsum"><span class="dsq" style="grid-template-columns:repeat(${d.S.n},1fr)" aria-hidden="true">${d.S.cells.map(c=>`<i class="${c.o>=0?'on':''}"></i>`).join('')}</span><span class="dtxt"><span class="ht">${p.score} points</span><span class="hs">${p.cells} of ${d.S.n*d.S.n} squares</span></span>${(st=>`<span class="dstats"><span><b>${st.streak}</b>streak</span><span><b>${st.played}</b>played</span><span><b>${st.best}</b>best</span></span>`)(dailyStats())}</span><span class="hs">Tap to see your grid and share it.</span><span class="hm">Next grid in ${next}</span></button>`
