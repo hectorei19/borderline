@@ -218,6 +218,16 @@ button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--
 .dsq i{aspect-ratio:1;border-radius:3px;background:var(--rule)}
 .dsq i.on{background:var(--good)}
 .dtxt{display:flex;flex-direction:column;gap:2px}
+.hrank{font-size:.95rem;color:var(--ink)}.hrank b{font-family:var(--display);font-weight:900;font-size:1.15rem;color:var(--sea)}
+.lbl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.lbl li{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--rule)}
+.lbl li:last-child{border-bottom:0}
+.lbl li.me{background:var(--sea-soft);border-radius:4px}
+.lbl .rk{width:26px;font-family:var(--display);font-weight:900;font-size:1.15rem}
+.lbl .nm{flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbl .sq{font-family:var(--mono);font-size:.75rem;color:var(--ink-2)}
+.lbl .pt{font-family:var(--mono);min-width:44px;text-align:right}
+.lbl .gap{justify-content:center;color:var(--ink-2);border-bottom:0;padding:2px}
 .dstats{margin-left:auto;display:flex;flex-direction:column;gap:4px;padding-left:16px;border-left:1px solid var(--rule);font-size:.9rem;color:var(--ink-2)}
 .dstats>span{white-space:nowrap}
 .dstats b{font-family:var(--display);font-weight:900;font-size:1.3rem;color:var(--ink);margin-right:5px}
@@ -640,10 +650,30 @@ const dailyEntry=(s,f)=>({s:s.players[0].score||0,c:s.players[0].cells||0,n:s.n,
 // with an account, today's try belongs to the first device that started it (ACCT_TODAY is the account's entry for today)
 const otherDevice=e=>!!e&&e.d!==ME;
 function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1);
-  const old=h[s.daily];if(old&&old.s===e.s&&old.c===e.c&&old.f===1)return;
+  const old=h[s.daily];if(old&&old.s===e.s&&old.c===e.c&&old.f===1){submitLB(s.daily,old);return}
   if(USER&&s.daily===todayKey()&&otherDevice(ACCT_TODAY))return; // the account already used today's try elsewhere
   h[s.daily]=e;saveHist(h);
-  if(USER&&db)db.ref('users/'+USER.uid+'/daily/'+s.daily).transaction(cur=>!cur||cur.d===ME?e:undefined).catch(()=>{})}
+  if(USER&&db)db.ref('users/'+USER.uid+'/daily/'+s.daily).transaction(cur=>!cur||cur.d===ME?e:undefined).catch(()=>{});
+  submitLB(s.daily,e)}
+/* ---- daily ranking: leaderboard/<date>/<uid> = {name, s, c, t}; anyone can read it, each account
+   writes its own result once (Firebase rules refuse a second write) ---- */
+let LB=null,lbRef=null,lbDate=null,lbSent='';
+function submitLB(date,e){if(!USER||!db||TESTDAY||date!==todayKey()||e.f!==1||e.d!==ME)return;
+  if(LB&&LB[USER.uid]||lbSent===USER.uid+date)return;lbSent=USER.uid+date;
+  db.ref('leaderboard/'+date+'/'+USER.uid).set({name:(setup.user||'Player').slice(0,16),s:e.s,c:e.c,t:TS()}).catch(()=>{})}
+function watchLB(){if(!FB_OK||TESTDAY||!initFB())return;const k=todayKey();if(lbDate===k)return;
+  if(lbRef)lbRef.off();lbDate=k;LB=null;lbRef=db.ref('leaderboard/'+k);
+  lbRef.on('value',s=>{LB=s.val()||{};if(!S||S.daily)render()},()=>{})}
+// ranking order: more points first, then more squares, then whoever finished first
+function lbRows(){return Object.entries(LB||{}).map(([uid,v])=>({uid,...v})).sort((a,b)=>b.s-a.s||b.c-a.c||(a.t||0)-(b.t||0))}
+// today's ranking table: the top 10, plus your own row if you are further down
+function lbView(){if(!FB_OK||TESTDAY)return '';const rows=lbRows(),me=USER&&USER.uid,i=rows.findIndex(r=>r.uid===me);
+  const row=(r,k)=>`<li class="${r.uid===me?'me':''}"><span class="rk">${k+1}</span><span class="nm">${esc(r.name||'Player')}</span><span class="sq">${r.c}/${DAILY_N*DAILY_N}</span><span class="pt">${r.s}</span></li>`;
+  const list=rows.slice(0,10).map(row).join('')+(i>=10?`<li class="gap">…</li>`+row(rows[i],i):'');
+  const foot=!USER?(AUTH_OK?`<button class="ghost" id="signin2">Sign in to join the ranking</button>`:''):i<0?`<p class="hint">Your result joins the ranking when you finish today's grid signed in.</p>`:'';
+  return `<section class="panel lb"><span class="label">Today's ranking${rows.length?` · ${rows.length} player${rows.length===1?'':'s'}`:''}</span>${rows.length?`<ol class="lbl">${list}</ol>`:`<p class="hint">Nobody in today's ranking yet.</p>`}${foot}</section>`}
+function lbMine(){if(!USER||!LB)return null;const rows=lbRows(),i=rows.findIndex(r=>r.uid===USER.uid);
+  return i<0?null:{rank:i+1,total:rows.length,top:Math.max(1,Math.round((i+1)/rows.length*100))}}
 function dailyStats(){const h=loadHist(),days=Object.keys(h).sort(),day=k=>Math.round(Date.parse(k+'T12:00Z')/864e5);
   let streak=0;const today=day(todayKey());let d=h[todayKey()]?today:today-1;
   const set=new Set(days.map(day));while(set.has(d)){streak++;d--}
@@ -840,11 +870,12 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
   ref.once('value').then(snap=>{const remote=snap.val()||{},local=loadHist(),up={};
     for(const [k,v] of Object.entries(remote))local[k]=v;
     for(const [k,v] of Object.entries(local))if(!remote[k])up[k]={...v,d:v.d||ME,g:v.g||'',f:v.f===0?0:1};
+    const t=up[todayKey()]||local[todayKey()];if(t)submitLB(todayKey(),t); // a game finished here before signing in joins the ranking
     saveHist(local);if(Object.keys(up).length)ref.update(up).catch(()=>{});render()}).catch(()=>{})}
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161230';
+const APP_VERSION='202610161330';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1134,11 +1165,16 @@ function homeView(){
   const done=d&&d.S.over,p=done&&d.S.players[0];
   if(done)recordDaily(d.S); // also counts a game finished before stats existed, or on a device that was offline
   if(USER&&acctRef&&acctRef.key!==key)watchToday(); // a new day began while the page was open
+  watchLB();
+  const mine=lbMine(),nPlayers=LB?Object.keys(LB).length:0;
+  const rankLine=mine?`<span class="hrank"><b>#${mine.rank}</b> of ${mine.total} today · top ${mine.top}%</span>`
+    :USER?(nPlayers?`<span class="hrank">${nPlayers} player${nPlayers===1?'':'s'} in today's ranking</span>`:'')
+    :AUTH_OK?`<span class="hrank">Sign in to join today's ranking${nPlayers?` (${nPlayers} player${nPlayers===1?'':'s'})`:''}.</span>`:'';
   // signed in and today's try was used on another device of the account: show that result instead of the grid
   const other=!done&&USER&&otherDevice(ACCT_TODAY)?ACCT_TODAY:null;
   // played: green squares for the answers you got, grey for the rest (like the shared result); tap to see the full grid
-  const doneCard=(status,n,got,score,cells,hint)=>`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · ${status}</span><span class="dsum"><span class="dsq" style="grid-template-columns:repeat(${n},1fr)" aria-hidden="true">${got.map(x=>`<i class="${x?'on':''}"></i>`).join('')}</span><span class="dtxt"><span class="ht">${score} points</span><span class="hs">${cells} of ${n*n} squares</span></span>${(st=>`<span class="dstats"><span><b>${st.streak}</b>streak</span><span><b>${st.played}</b>played</span><span><b>${st.best}</b>best</span></span>`)(dailyStats())}</span><span class="hs">${hint}</span><span class="hm">Next grid in ${next}</span></button>`;
-  const daily=done?doneCard('done',d.S.n,d.S.cells.map(c=>c.o>=0),p.score,p.cells,'Tap to see your grid and share it.')
+  const doneCard=(status,n,got,score,cells,hint)=>`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · ${status}</span><span class="dsum"><span class="dsq" style="grid-template-columns:repeat(${n},1fr)" aria-hidden="true">${got.map(x=>`<i class="${x?'on':''}"></i>`).join('')}</span><span class="dtxt"><span class="ht">${score} points</span><span class="hs">${cells} of ${n*n} squares</span></span>${(st=>`<span class="dstats"><span><b>${st.streak}</b>streak</span><span><b>${st.played}</b>played</span><span><b>${st.best}</b>best</span></span>`)(dailyStats())}</span>${rankLine}<span class="hs">${hint}</span><span class="hm">Next grid in ${next}</span></button>`;
+  const daily=done?doneCard('done',d.S.n,d.S.cells.map(c=>c.o>=0),p.score,p.cells,'Tap to see your grid, the ranking and share it.')
     :other?doneCard(other.f===0?'started on another device':'played on another device',other.n||DAILY_N,[...(other.g||'').padEnd((other.n||DAILY_N)**2,'0')].map(x=>x==='1'),other.s||0,other.c||0,other.f===0?'You started it on another device with this account. One try per account.':'You played it on another device with this account.')
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
@@ -1241,7 +1277,7 @@ function shareView(){const enc=encodeURIComponent;
 function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
   if(S.daily){const p=S.players[0],n=S.n,ms=msToNextDay();
-    return `<section class="panel"><span class="label">Daily grid #${S.day}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">Back to menu</button></div></section>`}
+    return `<section class="panel"><span class="label">Daily grid #${S.day}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">Back to menu</button></div></section>${lbView()}`}
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
     return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share sends your result with a link: friends who open it play this same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
@@ -1311,7 +1347,7 @@ function drawLayer(){
         <dt>Fonts</dt>
         <dd>Big Shoulders Display, Barlow Semi Condensed and JetBrains Mono, from <a href="https://fonts.google.com" target="_blank" rel="noopener">Google Fonts</a>, under the SIL Open Font License.</dd>
         <dt>Online play</dt>
-        <dd>Rooms run on <a href="https://firebase.google.com" target="_blank" rel="noopener">Firebase Realtime Database</a>. Only room codes, player names and moves are stored. If you sign in with Google to sync your stats, your account's anonymous Firebase id and your daily scores (date, points, squares) are stored too, readable only by you; sign out at any time from the home screen.</dd>
+        <dd>Rooms run on <a href="https://firebase.google.com" target="_blank" rel="noopener">Firebase Realtime Database</a>. Only room codes, player names and moves are stored. If you sign in with Google to sync your stats, your account's anonymous Firebase id and your daily scores (date, points, squares) are stored too, readable only by you; sign out at any time from the home screen. When you finish today's grid signed in, your in-game name, points and squares appear in today's public ranking (once per day, they cannot be changed afterwards).</dd>
         <dt>Accuracy</dt>
         <dd>Borders, languages and currencies change and can be disputed. The game follows the data above; if an answer looks wrong, tap the category's <span class="ib">i</span> to see the exact rule used.</dd>
       </dl>
@@ -1395,6 +1431,7 @@ function bind(){
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   app.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{screen=b.dataset.go;render()});
   if($('signin'))$('signin').onclick=signIn;
+  if($('signin2'))$('signin2').onclick=signIn;
   if($('signout'))$('signout').onclick=signOut;
   if($('dreset'))$('dreset').onclick=()=>{try{localStorage.removeItem('bl-daily')}catch(e){}dailyCache=null;S=null;toast('Today\'s grid reset (test mode).','good');render()};
   app.querySelectorAll('[data-dcell]').forEach(b=>b.onclick=()=>{const ci=+b.dataset.dcell;playDaily();
@@ -1438,7 +1475,7 @@ function start(data){
   try{const q=new URLSearchParams(location.search).get('room');if(q&&/^[A-Za-z]{4}$/.test(q)){setup.mode='online';setup.join=q.toUpperCase();screen='friends'}}catch(e){}
   // a shared result link (?grid=4E-KQPMT) opens the setup screen ready to play that same grid
   try{const g=new URLSearchParams(location.search).get('grid');if(g&&parseCode(g)){setup.code=g.trim().toUpperCase();if(setup.mode==='online')setup.mode='solo';screen='solo';if(S&&S.mode!=='online')S=null}}catch(e){}
-  initAuth();
+  initAuth();watchLB();
   if(FB_OK&&!S){let saved='';try{saved=localStorage.getItem('bl-room')||''}catch(e){}
     if(saved&&initFB()){listenRoom(saved)}}
   render();
