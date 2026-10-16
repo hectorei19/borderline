@@ -206,6 +206,15 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .hcard.ac{border:2px solid var(--sea);padding:15px}
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
+.hrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hrow .hcard>.ht{font-size:1.4rem}
+.dsum{display:flex;align-items:center;gap:16px;margin:4px 0}
+.dsq{display:grid;gap:4px;width:88px;flex:none}
+.dsq i{aspect-ratio:1;border-radius:3px;background:var(--rule)}
+.dsq i.on{background:var(--good)}
+.dtxt{display:flex;flex-direction:column;gap:2px}
+.dtxt .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
+.dtxt .hs{color:var(--ink-2)}
 .testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1.5px dashed var(--bad);border-radius:6px;font-family:var(--mono);font-size:.8rem;color:var(--bad)}
 .hcard>.ht,.backline .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
 .hcard>.hs{color:var(--ink-2);font-size:1rem}
@@ -775,7 +784,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610160900';
+const APP_VERSION='202610161000';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1064,14 +1073,17 @@ function homeView(){
   const date=new Date(key+'T12:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'});
   const done=d&&d.S.over,p=done&&d.S.players[0];
   const daily=done
-    ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="ht">${p.score} points</span><span class="hs">${p.cells}/${d.S.n*d.S.n} squares. See your result and share it.</span><span class="hm">Next grid in ${next}</span></button>`
+    // played: green squares for the answers you got, grey for the rest (like the shared result); tap to see the full grid
+    ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="dsum"><span class="dsq" style="grid-template-columns:repeat(${d.S.n},1fr)" aria-hidden="true">${d.S.cells.map(c=>`<i class="${c.o>=0?'on':''}"></i>`).join('')}</span><span class="dtxt"><span class="ht">${p.score} points</span><span class="hs">${p.cells} of ${d.S.n*d.S.n} squares</span></span></span><span class="hs">Tap to see your grid and share it.</span><span class="hm">Next grid in ${next}</span></button>`
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button></div>`:''}
+    <div class="hrow">
     <button class="hcard" data-go="solo"><span class="ht">Solo</span><span class="hs">Train on unlimited grids, at your level.</span></button>
     <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, each on your own phone. 2 to 4 players.</span></button>
+    </div>
   </section>
   <section class="panel"><span class="label">Quick rules</span><ul class="rules">
     <li>Fill each square with a country that matches its row <em>and</em> its column.</li>
