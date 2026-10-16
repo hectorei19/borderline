@@ -207,6 +207,22 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .hcard.ac{border:2px solid var(--sea);padding:15px}
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
+.menuscrim{position:fixed;inset:0;z-index:28}
+.menubox{position:fixed;z-index:29;top:calc(58px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:min(560px,100%);padding:0 16px;display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.menubox .mitem{pointer-events:auto;width:min(280px,100%);text-align:left;background:var(--sheet);border:1px solid var(--rule);border-top-width:0;padding:13px 16px;font-weight:600;font-size:1rem}
+.menubox .mitem:first-child{border-top-width:1px;border-radius:8px 8px 0 0}
+.menubox .mitem:last-child{border-radius:0 0 8px 8px;box-shadow:var(--shadow)}
+.menubox .mitem:hover{background:var(--sea-soft)}
+/* archive of past daily grids */
+.arch{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.arch button{width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--sheet);border:1px solid var(--rule);border-radius:6px;padding:10px 12px}
+.arch button:hover{border-color:var(--sea)}
+.arch .an{font-family:var(--display);font-weight:900;font-size:1.5rem;min-width:52px;color:var(--sea)}
+.arch .ad{flex:1;display:flex;flex-direction:column;gap:2px}
+.arch .ad small{color:var(--ink-2);font-size:.85rem}
+.arch .as{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);text-align:right}
+.arch .as.done{color:var(--good)}
+.arch .dsq{width:44px;gap:2px}
 .corner.dnum{flex-direction:column;gap:2px;padding:4px}
 .corner.dnum .dl{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2)}
 .corner.dnum .dn{font-family:var(--display);font-weight:900;font-size:2rem;line-height:.9;color:var(--sea);letter-spacing:.01em}
@@ -658,7 +674,8 @@ function msToNextDay(){const p=madridParts(now());return (24*3600-(+p.hour*3600+
 // the same seed for everyone on a given day; step on until the seed gives a grid that can be completed
 function dailySeed(key){let h=2166136261;for(const ch of 'borderline-daily-'+key){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return h%7962624}
 function loadDaily(){try{const d=JSON.parse(localStorage.getItem('bl-daily')||'null');return d&&d.date===todayKey()?d:null}catch(e){return null}}
-function saveDaily(){if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}
+function saveDaily(){if(S&&S.archive){saveArchGame(S);if(S.over)recordArchive(S);return}
+  if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}
   if(S&&S.daily&&S.over)recordDaily(S)}
 /* ---- daily stats: one entry per played day {date:{s:score,c:squares,n:size}}, kept on the device
    and, when signed in with Google, in Firebase (users/<uid>/daily) so they follow you to other devices ---- */
@@ -687,7 +704,7 @@ function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1),t
 // another device of the account finished today's grid: take its whole game, so this device shows exactly the same
 // the account decides: it replaces whatever this device has for today, even a game finished here
 function adoptDaily(a){if(!a||!otherDevice(a)||a.f!==1||!a.j)return;const loc=loadDaily();if(loc&&loc.S.over&&loc.S.adopted===a.d+a.s)return;
-  try{const s=JSON.parse(a.j);if(s&&s.daily===todayKey()&&s.over){s.adopted=a.d+a.s;localStorage.setItem('bl-daily',JSON.stringify({date:s.daily,S:s}));if(S&&S.daily)S=null}}catch(e){}}
+  try{const s=JSON.parse(a.j);if(s&&s.daily===todayKey()&&s.over){s.adopted=a.d+a.s;localStorage.setItem('bl-daily',JSON.stringify({date:s.daily,S:s}));if(S&&S.daily===todayKey())S=null}}catch(e){}}
 /* ---- daily ranking: leaderboard/<date>/<uid> = {name, s, c, t}; anyone can read it, each account
    writes its own result once (Firebase rules refuse a second write) ---- */
 let LB=null,lbRef=null,lbDate=null,lbSent='';
@@ -698,9 +715,17 @@ function watchLB(){if(!FB_OK||TESTDAY||!initFB())return;const k=todayKey();if(lb
   if(lbRef)lbRef.off();lbDate=k;LB=null;lbRef=db.ref('leaderboard/'+k);
   lbRef.on('value',s=>{LB=s.val()||{};if(!S||S.daily)render()},()=>{})}
 // ranking order: more points first, then more squares, then whoever finished first
-function lbRows(){return Object.entries(LB||{}).map(([uid,v])=>({uid,...v})).sort((a,b)=>b.s-a.s||b.c-a.c||(a.t||0)-(b.t||0))}
-// today's ranking table: the top 10, plus your own row if you are further down
-function lbView(){if(!FB_OK||TESTDAY)return '';const rows=lbRows(),me=USER&&USER.uid,i=rows.findIndex(r=>r.uid===me);
+function lbRows(src){return Object.entries(src||LB||{}).map(([uid,v])=>({uid,...v})).sort((a,b)=>b.s-a.s||b.c-a.c||(a.t||0)-(b.t||0))}
+// a past day's ranking (archive games): read once, only to look at it
+const LBD={};
+function pastLB(date){if(LBD[date]===undefined&&initFB()){LBD[date]=null;db.ref('leaderboard/'+date).once('value').then(s=>{LBD[date]=s.val()||{};if(S&&S.daily===date)render()}).catch(()=>{})}return LBD[date]}
+// ranking table: the top 10, plus your own row if you are further down (today's, or a past day's for archive games)
+function lbView(date){if(!FB_OK||TESTDAY)return '';
+  if(date){const src=pastLB(date);if(!src)return `<section class="panel lb"><span class="label">Ranking of grid #${dayNumber(date)}</span><p class="hint">Loading…</p></section>`;
+    const rows=lbRows(src),me=USER&&USER.uid,i=rows.findIndex(r=>r.uid===me);
+    const row=(r,k)=>`<li class="${r.uid===me?'me':''}" data-stats="${esc(r.uid)}" role="button" tabindex="0"><span class="rk">${k+1}</span><span class="nm">${esc(r.name||'Player')}</span><span class="sq">${r.c}/${DAILY_N*DAILY_N}</span><span class="pt">${r.s}</span></li>`;
+    return `<section class="panel lb"><span class="label">Ranking of grid #${dayNumber(date)}${rows.length?` · ${rows.length} player${rows.length===1?'':'s'}`:''}</span>${rows.length?`<ol class="lbl">${rows.slice(0,10).map(row).join('')+(i>=10?`<li class="gap">…</li>`+row(rows[i],i):'')}</ol>`:'<p class="hint">Nobody played this grid on its day.</p>'}<p class="hint">How the players did on the day. Archive games are not added.</p></section>`}
+  const rows=lbRows(),me=USER&&USER.uid,i=rows.findIndex(r=>r.uid===me);
   const row=(r,k)=>`<li class="${r.uid===me?'me':''}" data-stats="${esc(r.uid)}" role="button" tabindex="0"><span class="rk">${k+1}</span><span class="nm">${esc(r.name||'Player')}</span><span class="sq">${r.c}/${DAILY_N*DAILY_N}</span><span class="pt">${r.s}</span></li>`;
   const list=rows.slice(0,10).map(row).join('')+(i>=10?`<li class="gap">…</li>`+row(rows[i],i):'');
   const foot=!USER?(AUTH_OK?`<button class="ghost" id="signin2">Sign in to join the ranking</button>`:''):i<0?`<p class="hint">Your result joins the ranking when you finish today's grid signed in.</p>`:'';
@@ -758,7 +783,7 @@ function fixedDaily(key){const ids=DAILY_FIXED.days[key];if(!ids)return null;
   rows.forEach(r=>cols.forEach(c=>answers.push(inter(r,c))));
   if(answers.some(a=>!a.length)||!isSafe(answers))return null;
   return {rows:rows.map(k=>k.id),cols:cols.map(k=>k.id),answers}}
-function dailyGrid(){const key=todayKey();if(dailyCache&&dailyCache.key===key)return dailyCache;
+function dailyGrid(day){const key=day||todayKey();if(dailyCache&&dailyCache.key===key)return dailyCache;
   const fixed=fixedDaily(key);if(fixed)return dailyCache={key,seed:dailySeed(key),g:fixed};
   let seed=dailySeed(key),g=generate(DAILY_N,seed,DAILY_DIFF),k=0;
   while(!g&&k++<50){seed=(seed+1)%7962624;g=generate(DAILY_N,seed,DAILY_DIFF)}
@@ -781,6 +806,54 @@ function playDaily(){
       if(!r.committed&&otherDevice(r.snapshot.val())&&S===mine){S=null;try{localStorage.removeItem('bl-daily')}catch(e){}
         toast('You already played today\'s grid with this account on another device.','bad');render()}}).catch(()=>{})}
 }
+/* ---- archive: past daily grids, one try each (per account when signed in, otherwise per device).
+   Games are kept in bl-arch on the device and in users/<uid>/archive/<date> (with the whole game, like today's grid).
+   They count neither for the daily ranking nor for the streak. ---- */
+function loadArch(){try{return JSON.parse(localStorage.getItem('bl-arch')||'{}')||{}}catch(e){return {}}}
+function saveArchGame(s){const a=loadArch();a[s.daily]=s;try{localStorage.setItem('bl-arch',JSON.stringify(a))}catch(e){}}
+let ARCH_REMOTE=null,archBack='home';const archUp=new Set();
+function syncArch(){if(!USER||!db)return;const uid=USER.uid;
+  db.ref('users/'+uid+'/archive').once('value').then(s=>{if(!USER||USER.uid!==uid)return;ARCH_REMOTE=s.val()||{};
+    const a=loadArch();let ch=false;
+    for(const [k,v] of Object.entries(ARCH_REMOTE))if(otherDevice(v)&&v.f===1&&v.j&&!(a[k]&&a[k].over&&a[k].adopted===v.d+v.s)){
+      try{const g=JSON.parse(v.j);g.adopted=v.d+v.s;a[k]=g;ch=true}catch(e){}}
+    if(ch)try{localStorage.setItem('bl-arch',JSON.stringify(a))}catch(e){}
+    if(screen==='archive')render()}).catch(()=>{})}
+function recordArchive(s){if(!USER||!db||TESTDAY||archUp.has(s.daily))return;
+  const r=(ARCH_REMOTE||{})[s.daily];if(r&&r.d===ME&&r.f===1&&r.j)return;
+  archUp.add(s.daily);const full={...dailyEntry(s,1),j:JSON.stringify(s)};
+  db.ref('users/'+USER.uid+'/archive/'+s.daily).transaction(cur=>!cur||!cur.d||cur.d===ME?full:undefined)
+    .then(x=>{if(x.committed&&ARCH_REMOTE)ARCH_REMOTE[s.daily]=full}).catch(()=>archUp.delete(s.daily))}
+function archDates(){const out=[],end=Date.parse(todayKey()+'T12:00Z');let d=Date.parse(DAILY_FIRST+'T12:00Z');
+  while(d<end){out.push(new Date(d).toISOString().slice(0,10));d+=864e5}return out.reverse()}
+function openArchive(){if(screen!=='archive')archBack=screen;screen='archive';ui.reveal=-1;if(USER)syncArch();render();window.scrollTo(0,0)}
+function archiveView(){const a=loadArch(),rem=ARCH_REMOTE||{};
+  const items=archDates().map(k=>{const g=a[k],r=rem[k],n=dayNumber(k),
+      date=new Date(k+'T12:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+    let st,sq='';
+    if(g&&g.over){st=`<span class="as done">${g.players[0].score} pts</span>`;
+      sq=`<span class="dsq" style="grid-template-columns:repeat(${g.n},1fr)" aria-hidden="true">${g.cells.map(c=>`<i class="${c.o>=0?'on':''}"></i>`).join('')}</span>`}
+    else if(USER&&r&&otherDevice(r))st=`<span class="as">${r.f===1?'Played on another device':'Started on another device'}</span>`;
+    else st=`<span class="as">${g?'In progress':'Play'}</span>`;
+    return `<li><button data-arch="${k}"><span class="an">#${n}</span><span class="ad"><b>Grid #${n}</b><small>${date}</small></span>${sq}${st}</button></li>`}).join('');
+  return `<section class="panel"><div class="backline"><button class="linkbtn" id="aback">← Back</button><span class="ht">Archive</span></div>
+    <p class="hint">Play the daily grids you missed. One try per grid${USER?' with your account':' on this device'}. Archive games don't count for the daily ranking or your streak.</p>
+    ${items?`<ul class="arch">${items}</ul>`:'<p class="hint">No past grids yet. Come back tomorrow.</p>'}</section>`}
+function playArchive(k){const a=loadArch(),r=(ARCH_REMOTE||{})[k];
+  if(USER&&r&&otherDevice(r)&&!(a[k]&&a[k].over)){toast(r.f===1?'You played this grid on another device with this account.':'You started this grid on another device with this account. One try per grid.','bad');return}
+  ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};screen='home';
+  if(a[k]){S=a[k];if(!S.over)startTurn();render();window.scrollTo(0,0);return}
+  const dg=dailyGrid(k);if(!dg){toast('Could not build this grid.','bad');return}
+  const g=dg.g;
+  S={mode:'solo',daily:k,archive:true,day:dayNumber(k),n:DAILY_N,seed:dg.seed,diff:DAILY_DIFF,code:makeCode(DAILY_N,dg.seed,DAILY_DIFF),rows:g.rows,cols:g.cols,answers:g.answers,
+     cells:g.answers.map(()=>({o:-1,c:null})),used:[],players:[{name:setup.user||'You',score:0}],turn:0,
+     guesses:DAILY_N*DAILY_N+DAILY_N,timer:0,deadline:0,passes:0,over:false,wrong:0};
+  startTurn(true);render();window.scrollTo(0,0);
+  // signed in: claim this grid's try for this device; if another device got there first, stop
+  if(USER&&db&&!TESTDAY){const mine=S;
+    db.ref('users/'+USER.uid+'/archive/'+k).transaction(cur=>!cur||!cur.d?dailyEntry(mine,0):cur.d===ME?cur:undefined).then(x=>{
+      if(!x.committed&&otherDevice(x.snapshot.val())&&S===mine){S=null;const b=loadArch();delete b[k];try{localStorage.setItem('bl-arch',JSON.stringify(b))}catch(e){}
+        toast('You already played this grid with this account on another device.','bad');screen='archive';render()}}).catch(()=>{})}}
 // big or hard grids can take a second to build: show a note first so the screen does not look frozen
 function buildThenStart(){if(setup.n===5||setup.diff!=='normal')toast('Building a grid that can always be completed…');setTimeout(startGame,40)}
 function startGame(){
@@ -938,7 +1011,7 @@ function watchToday(){if(acctRef){acctRef.off();acctRef=null}ACCT_TODAY=null;if(
     if(otherDevice(ACCT_TODAY)){const h=loadHist(),{j,...entry}=ACCT_TODAY;h[todayKey()]=entry;saveHist(h);adoptDaily(ACCT_TODAY)}
     if(!S||S.daily)render()})}
 function initAuth(){if(!AUTH_OK||!initFB())return;
-  firebase.auth().onAuthStateChanged(u=>{USER=u||null;PROFILE=null;NEEDNAME=false;watchToday();if(USER){loadProfile();syncHist();syncGames().then(publishSoon)}render()});
+  firebase.auth().onAuthStateChanged(u=>{USER=u||null;PROFILE=null;NEEDNAME=false;watchToday();if(USER){loadProfile();syncHist();syncGames().then(publishSoon);syncArch()}else ARCH_REMOTE=null;render()});
   firebase.auth().getRedirectResult().catch(e=>authError(e))}
 function authError(e){const c=(e&&e.code)||'';if(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request')return;
   toast(c==='auth/unauthorized-domain'||c==='auth/operation-not-allowed'?'Sign-in is not set up yet for this site.':'Could not sign in. Try again.','bad')}
@@ -958,7 +1031,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610162030';
+const APP_VERSION='202610162130';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1151,7 +1224,7 @@ const pinStyle=i=>`background:var(--p${i})`;
 const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
-  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(screen==='stats'?statsView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
+  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="menu" aria-haspopup="true" aria-expanded="${ui.menu?'true':'false'}">☰ Menu</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(screen==='stats'?statsView():screen==='archive'?archiveView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
   bind();drawLayer();fitHeaders();saveDaily();recordGame();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
@@ -1269,7 +1342,7 @@ function confirmPlayers(){
 }
 // home: three ways to play. 'solo' and 'friends' are the settings screens behind two of them
 let screen='home';
-const screenFor=s=>!s||s.daily?'home':s.mode==='solo'?'solo':'friends';
+const screenFor=s=>!s?'home':s.archive?'archive':s.daily?'home':s.mode==='solo'?'solo':'friends';
 // top-left corner of a board: the daily grid shows its number (GRID #3), other games the Borderline logo
 const cornerHTML=day=>day?`<div class="corner dnum" aria-label="Grid number ${day}"><span class="dl">Grid</span><span class="dn${day>=100?' long':''}">#${day}</span></div>`
   :`<div class="corner"><span class="cbrand">Border<span>line</span></span></div>`;
@@ -1406,7 +1479,7 @@ function shareView(){const enc=encodeURIComponent;
 function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
   if(S.daily){const p=S.players[0],n=S.n,ms=msToNextDay();
-    return `<section class="panel"><span class="label">Daily grid #${S.day}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">Back to menu</button></div></section>${lbView()}`}
+    return `<section class="panel"><span class="label">${S.archive?'Archive · ':''}Daily grid #${S.day}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. ${S.archive?'Archive games don\'t count for the ranking or your streak.':`Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.`}</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">${S.archive?'Back to archive':'Back to menu'}</button></div></section>${lbView(S.archive?S.daily:null)}`}
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
     return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share sends your result with a link: friends who open it play this same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
@@ -1437,6 +1510,9 @@ function matches(q){
 }
 function drawLayer(){
   let h='';
+  // header menu: How to play, Archive, My stats, Credits, sign in/out
+  if(ui.menu){const it=(k,label)=>`<button class="mitem" data-menu="${k}">${label}</button>`;
+    h+=`<div class="menuscrim" id="menuscrim"></div><nav class="menubox" aria-label="Menu">${it('help','How to play')}${it('archive','Archive')}${it('stats','My stats')}${it('credits','Credits &amp; data sources')}${AUTH_OK?(USER?it('signout','Sign out'):it('signin','Sign in with Google')):''}</nav>`}
   if(S&&!S.over&&ui.sel>=0){
     const n=S.n,i=Math.floor(ui.sel/n),j=ui.sel%n;
     const res=matches(ui.query);
@@ -1525,6 +1601,12 @@ function drawLayer(){
     document.getElementById('sharecopy').onclick=()=>{close();copyShare()}}
   const ck=document.getElementById('credok');
   if(ck){const close=()=>{ui.credits=false;drawLayer()};ck.onclick=close;document.getElementById('credscrim').onclick=close}
+  const ms=document.getElementById('menuscrim');
+  if(ms){ms.onclick=()=>{ui.menu=false;drawLayer()};
+    layer.querySelectorAll('[data-menu]').forEach(b=>b.onclick=()=>{const k=b.dataset.menu;ui.menu=false;
+      if(k==='help'){ui.help=true;drawLayer()}else if(k==='credits'){ui.credits=true;drawLayer()}
+      else if(k==='stats')openStats(USER?USER.uid:null);else if(k==='archive')openArchive();
+      else if(k==='signin'){drawLayer();signIn()}else if(k==='signout'){drawLayer();signOut()}})}
   const hk=document.getElementById('helpok');
   if(hk){const close=()=>{ui.help=false;drawLayer()};hk.onclick=close;document.getElementById('helpscrim').onclick=close}
   const ok=document.getElementById('infook');
@@ -1560,6 +1642,8 @@ function bind(){
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   if($('gsignin'))$('gsignin').onclick=signIn;
   if($('mystats'))$('mystats').onclick=()=>openStats(USER?USER.uid:null);
+  if($('aback'))$('aback').onclick=()=>{screen=archBack==='archive'?'home':archBack;render()};
+  app.querySelectorAll('[data-arch]').forEach(b=>b.onclick=()=>playArchive(b.dataset.arch));
   if($('sback'))$('sback').onclick=()=>{screen=statsBack==='stats'?'home':statsBack;render()};
   app.querySelectorAll('[data-stats]').forEach(b=>{b.onclick=()=>openStats(b.dataset.stats);b.onkeydown=e=>{if(e.key==='Enter')openStats(b.dataset.stats)}});
   if($('pickname')){const u=$('pickname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveProfile(u.value)};$('savepick').onclick=()=>saveProfile(u.value)}
@@ -1578,7 +1662,7 @@ function bind(){
   if($('pass'))$('pass').onclick=pass;
   if($('giveup'))$('giveup').onclick=()=>{const b=$('giveup');if(b.dataset.armed){endGame()}else{b.dataset.armed='1';b.textContent='Tap again to confirm'}};
   if($('create'))$('create').onclick=createRoom;
-  if($('help'))$('help').onclick=()=>{ui.help=true;drawLayer()};
+  if($('menu'))$('menu').onclick=()=>{ui.menu=!ui.menu;drawLayer()};
   if($('reload'))$('reload').onclick=()=>{location.replace(location.pathname+'?v='+Date.now()+(roomCode?'&room='+roomCode:''))};
   if($('jcode'))$('jcode').oninput=e=>{setup.join=e.target.value};
   if($('jcode'))$('jcode').onkeydown=e=>{if(e.key==='Enter')joinRoom($('jcode').value)};
