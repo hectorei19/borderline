@@ -825,7 +825,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161130';
+const APP_VERSION='202610161145';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1125,7 +1125,7 @@ function homeView(){
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button></div>`:''}
     <div class="hrow">
     <button class="hcard" data-go="solo"><span class="ht">Solo</span><span class="hs">Train on unlimited grids, at your level.</span></button>
-    <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, each on your own phone. 2 to 4 players.</span></button>
+    <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, 2 to 4 players.</span></button>
     </div>
   </section>
   <section class="panel qrules"><span class="label">Quick rules</span><p class="hint">Name a country that fits its row <em>and</em> its column, each country once per grid. Tap <span class="ib">i</span> to see what a category means. Full rules in <b>How to play</b>.</p></section>`;
