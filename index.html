@@ -210,6 +210,17 @@ button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--
 .hrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .qrules{gap:6px}.qrules .hint{font-size:1rem}
 .userline{flex-wrap:wrap}
+.stats .label{margin-top:4px}
+.stgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.st{border:1px solid var(--rule);border-radius:6px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.st b{font-family:var(--display);font-weight:900;font-size:1.6rem;line-height:1;color:var(--ink)}
+.st span{font-size:.8rem;color:var(--ink-2)}
+.sttab{width:100%;border-collapse:collapse;font-size:.9rem}
+.sttab th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);font-weight:600;text-align:right;padding:4px}
+.sttab td{text-align:right;padding:6px 4px;border-top:1px solid var(--rule);font-family:var(--mono)}
+.sttab td:first-child,.sttab th:first-child{text-align:left;font-family:var(--ui);font-weight:600}
+[data-stats]{cursor:pointer}
+.lbl li[data-stats]:hover{background:var(--sea-soft)}
 .orline{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:.9rem}
 .orline::before,.orline::after{content:"";flex:1;border-top:1px solid var(--rule)}
 .acct{margin-left:auto;font-family:var(--mono);font-size:.75rem;color:var(--good)}
@@ -659,7 +670,7 @@ let dailyUp='';
 function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1),today=s.daily===todayKey();
   if(USER&&today&&otherDevice(ACCT_TODAY))return; // the account already used today's try elsewhere
   const old=h[s.daily],same=old&&old.s===e.s&&old.c===e.c&&old.f===1&&old.d===ME;
-  if(!same){h[s.daily]=e;saveHist(h)}
+  if(!same){h[s.daily]=e;saveHist(h);publishSoon()}
   if(!USER||!db||!today)return;
   // the account keeps the whole finished game (j), so every device of the account shows the same grid;
   // the result joins the public ranking only once the account confirms today's try is this device's
@@ -685,16 +696,51 @@ function watchLB(){if(!FB_OK||TESTDAY||!initFB())return;const k=todayKey();if(lb
 function lbRows(){return Object.entries(LB||{}).map(([uid,v])=>({uid,...v})).sort((a,b)=>b.s-a.s||b.c-a.c||(a.t||0)-(b.t||0))}
 // today's ranking table: the top 10, plus your own row if you are further down
 function lbView(){if(!FB_OK||TESTDAY)return '';const rows=lbRows(),me=USER&&USER.uid,i=rows.findIndex(r=>r.uid===me);
-  const row=(r,k)=>`<li class="${r.uid===me?'me':''}"><span class="rk">${k+1}</span><span class="nm">${esc(r.name||'Player')}</span><span class="sq">${r.c}/${DAILY_N*DAILY_N}</span><span class="pt">${r.s}</span></li>`;
+  const row=(r,k)=>`<li class="${r.uid===me?'me':''}" data-stats="${esc(r.uid)}" role="button" tabindex="0"><span class="rk">${k+1}</span><span class="nm">${esc(r.name||'Player')}</span><span class="sq">${r.c}/${DAILY_N*DAILY_N}</span><span class="pt">${r.s}</span></li>`;
   const list=rows.slice(0,10).map(row).join('')+(i>=10?`<li class="gap">…</li>`+row(rows[i],i):'');
   const foot=!USER?(AUTH_OK?`<button class="ghost" id="signin2">Sign in to join the ranking</button>`:''):i<0?`<p class="hint">Your result joins the ranking when you finish today's grid signed in.</p>`:'';
   return `<section class="panel lb"><span class="label">Today's ranking${rows.length?` · ${rows.length} player${rows.length===1?'':'s'}`:''}</span>${rows.length?`<ol class="lbl">${list}</ol>`:`<p class="hint">Nobody in today's ranking yet.</p>`}${foot}</section>`}
 function lbMine(){if(!USER||!LB)return null;const rows=lbRows(),i=rows.findIndex(r=>r.uid===USER.uid);
   return i<0?null:{rank:i+1,total:rows.length,top:Math.max(1,Math.round((i+1)/rows.length*100))}}
-function dailyStats(){const h=loadHist(),days=Object.keys(h).sort(),day=k=>Math.round(Date.parse(k+'T12:00Z')/864e5);
+function dailyStats(){return dailyStatsFrom(loadHist())}
+function dailyStatsFrom(h){const days=Object.keys(h).sort(),day=k=>Math.round(Date.parse(k+'T12:00Z')/864e5);
   let streak=0;const today=day(todayKey());let d=h[todayKey()]?today:today-1;
   const set=new Set(days.map(day));while(set.has(d)){streak++;d--}
   return {played:days.length,streak,best:days.length?Math.max(...days.map(k=>h[k].s)):0}}
+/* ---- Solo and With friends games: one entry per finished game, kept on the device and, when signed in,
+   in users/<uid>/games; a public summary of all three modes is published in profiles/<uid> ---- */
+function loadGames(){try{return JSON.parse(localStorage.getItem('bl-games')||'[]')||[]}catch(e){return []}}
+function saveGames(g){try{localStorage.setItem('bl-games',JSON.stringify(g.slice(-1000)))}catch(e){}}
+function recordGame(){if(!S||!S.over||S.daily||!S.gid||TEST)return;if(S.mode!=='solo'&&S.mode!=='online')return;
+  const games=loadGames();if(games.some(g=>g.id===S.gid))return;let e;
+  if(S.mode==='solo'){const p=S.players[0];e={id:S.gid,m:'s',n:S.n,d:S.diff||'normal',s:p.score||0,c:p.cells||0,t:todayKey()}}
+  else{if(S.me<0)return;const sc=S.players.map(p=>p.score||0),mine=sc[S.me],better=sc.filter(x=>x>mine).length,tie=sc.filter(x=>x===mine).length>1;
+    e={id:S.gid,m:'f',n:S.n,d:S.diff||'normal',s:mine,c:S.players[S.me].cells||0,np:S.players.length,r:better+1,w:better===0&&!tie?1:0,dr:better===0&&tie?1:0,t:todayKey()}}
+  games.push(e);saveGames(games);
+  if(USER&&db)db.ref('users/'+USER.uid+'/games/'+e.id).set(e).catch(()=>{});
+  publishSoon()}
+function syncGames(){if(!USER||!db)return Promise.resolve();const ref=db.ref('users/'+USER.uid+'/games');
+  return ref.once('value').then(snap=>{const remote=snap.val()||{},local=loadGames(),ids=new Set(local.map(g=>g.id)),up={};
+    for(const [k,v] of Object.entries(remote))if(!ids.has(k)){local.push({...v,id:k});ids.add(k)}
+    for(const g of local)if(!remote[g.id])up[g.id]=g;
+    saveGames(local);if(Object.keys(up).length)return ref.update(up).catch(()=>{})}).catch(()=>{})}
+// all the numbers of the stats page, from the daily history and the list of games
+function computeStats(hist,games){
+  const days=Object.keys(hist).sort(),dv=days.map(k=>hist[k]),day=k=>Math.round(Date.parse(k+'T12:00Z')/864e5);
+  const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0,best=a=>a.length?Math.max(...a):0;
+  let maxStreak=0,run=0,prev=null;for(const k of days){const d=day(k);run=prev!==null&&d===prev+1?run+1:1;prev=d;maxStreak=Math.max(maxStreak,run)}
+  const ds=dailyStatsFrom(hist);
+  const solo=games.filter(g=>g.m==='s'),fr=games.filter(g=>g.m==='f');
+  const sum=a=>({played:a.length,best:best(a.map(g=>g.s)),avg:avg(a.map(g=>g.s)),perfect:a.filter(g=>g.c===g.n*g.n).length});
+  const byDiff={};['easy','normal','hard'].forEach(d=>byDiff[d]=sum(solo.filter(g=>g.d===d)));
+  const wins=fr.filter(g=>g.w===1).length;
+  return {d:{played:days.length,streak:ds.streak,max:maxStreak,best:best(dv.map(e=>e.s||0)),avg:avg(dv.map(e=>e.s||0)),perfect:dv.filter(e=>e.c===(e.n||DAILY_N)*(e.n||DAILY_N)).length},
+    s:{...sum(solo),byDiff},
+    f:{played:fr.length,wins,draws:fr.filter(g=>g.dr===1).length,pct:fr.length?Math.round(wins/fr.length*100):0,best:best(fr.map(g=>g.s))}}}
+let pubTimer=null;
+function publishSoon(){clearTimeout(pubTimer);pubTimer=setTimeout(publishProfile,1500)}
+function publishProfile(){if(!USER||!db||!PROFILE)return;
+  db.ref('profiles/'+USER.uid).set({name:PROFILE,...computeStats(loadHist(),loadGames()),u:TS()}).catch(()=>{})}
 // today's grid is built once per day and kept, so the home screen can show it before you play
 let dailyCache=null;
 // a day listed in DAILY_FIXED always gets that grid; it is rebuilt from the category labels and checked again
@@ -742,7 +788,8 @@ function startGame(){
   const players=setup.mode==='solo'?[{name:setup.user||'You',score:0}]:setup.names.map((nm,i)=>({name:nm.trim()||('Player '+(i+1)),score:0}));
   S={mode:setup.mode,n,seed,diff,code:makeCode(n,seed,diff),rows:g.rows,cols:g.cols,answers:g.answers,
      cells:g.answers.map(()=>({o:-1,c:null})),used:[],players,turn:0,
-     guesses:setup.mode==='solo'?n*n+n:null,timer:setup.timer,deadline:0,passes:0,over:false,wrong:0};
+     guesses:setup.mode==='solo'?n*n+n:null,timer:setup.timer,deadline:0,passes:0,over:false,wrong:0,
+     gid:'s-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7)};
   ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};
   startTurn(true);
   render();
@@ -867,7 +914,7 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 let USER=null,ACCT_TODAY=null,acctRef=null,PROFILE=null,NEEDNAME=false;
 // the account's name: chosen once (users/<uid>/profile), then fixed; it is also the name shown in the ranking
 function applyProfile(name){PROFILE=name;NEEDNAME=false;const old=setup.user;setup.user=name;editingUser=false;
-  if(!setup.names[0]||setup.names[0]===old)setup.names[0]=name;try{localStorage.setItem('bl-user',name)}catch(e){}render()}
+  if(!setup.names[0]||setup.names[0]===old)setup.names[0]=name;try{localStorage.setItem('bl-user',name)}catch(e){}publishSoon();render()}
 function loadProfile(){if(!USER||!db)return;const uid=USER.uid;
   db.ref('users/'+uid+'/profile').once('value').then(s=>{if(!USER||USER.uid!==uid)return;const v=s.val();
     if(v&&v.name)applyProfile(v.name);else{NEEDNAME=true;render()}}).catch(()=>{})}
@@ -883,7 +930,7 @@ function watchToday(){if(acctRef){acctRef.off();acctRef=null}ACCT_TODAY=null;if(
     if(otherDevice(ACCT_TODAY)){const h=loadHist(),{j,...entry}=ACCT_TODAY;h[todayKey()]=entry;saveHist(h);adoptDaily(ACCT_TODAY)}
     if(!S||S.daily)render()})}
 function initAuth(){if(!AUTH_OK||!initFB())return;
-  firebase.auth().onAuthStateChanged(u=>{USER=u||null;PROFILE=null;NEEDNAME=false;watchToday();if(USER){loadProfile();syncHist()}render()});
+  firebase.auth().onAuthStateChanged(u=>{USER=u||null;PROFILE=null;NEEDNAME=false;watchToday();if(USER){loadProfile();syncHist();syncGames().then(publishSoon)}render()});
   firebase.auth().getRedirectResult().catch(e=>authError(e))}
 function authError(e){const c=(e&&e.code)||'';if(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request')return;
   toast(c==='auth/unauthorized-domain'||c==='auth/operation-not-allowed'?'Sign-in is not set up yet for this site.':'Could not sign in. Try again.','bad')}
@@ -899,11 +946,11 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
     adoptDaily(remote[todayKey()]);
     // past days only: today's game goes through recordDaily, which checks the account's one try first
     for(const [k,v] of Object.entries(local))if(!remote[k]&&k!==todayKey())up[k]={...v,d:v.d||ME,g:v.g||'',f:v.f===0?0:1};
-    saveHist(local);if(Object.keys(up).length)ref.update(up).catch(()=>{});render()}).catch(()=>{})}
+    saveHist(local);if(Object.keys(up).length)ref.update(up).catch(()=>{});publishSoon();render()}).catch(()=>{})}
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161730';
+const APP_VERSION='202610161830';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -921,7 +968,7 @@ async function createRoom(){
     let code='';
     for(let i=0;i<8;i++){code=randRoom();const ex=await db.ref('rooms/'+code).get();if(!ex.exists())break}
     await db.ref('rooms/'+code).set({v:APP_VERSION,host:ME,created:TS(),cfg:{n:setup.n,timer:setup.timer,diff:setup.diff||'normal'},status:'lobby',
-      players:{[ME]:{name:setup.user,t:TS(),on:true}}});
+      players:{[ME]:{name:setup.user,t:TS(),on:true,...(USER?{uid:USER.uid}:{})}}});
     listenRoom(code);
   }catch(e){console.error(e);toast('Could not create the room. Check the connection and try again.','bad')}
 }
@@ -937,10 +984,10 @@ async function joinRoom(raw){
       if(!r)return r;
       r.players=r.players||{};
       if(r.v&&r.v!==APP_VERSION){why='version';return}
-      if(r.players[ME]){r.players[ME].name=setup.user;r.players[ME].on=true;return r}
+      if(r.players[ME]){r.players[ME].name=setup.user;r.players[ME].on=true;if(USER)r.players[ME].uid=USER.uid;return r}
       if(r.status!=='lobby'){why='started';return}
       if(Object.keys(r.players).length>=4){why='full';return}
-      r.players[ME]={name:setup.user,t:Date.now()+offset,on:true};return r;
+      r.players[ME]={name:setup.user,t:Date.now()+offset,on:true,...(USER?{uid:USER.uid}:{})};return r;
     });
     const val=res.snapshot.val();
     if(!val){toast('No room called '+code+'. Check the code.','bad');return}
@@ -990,7 +1037,8 @@ function syncRoom(){
   const cells=g.answers.map((_,i)=>cellMap[i]?{o:cellMap[i].o,c:cellMap[i].c,p:cellMap[i].p||0,sb:cellMap[i].sb||0}:{o:-1,c:null});
   S={mode:'online',n,seed:r.seed,diff:r.cfg.diff||'normal',code:makeCode(n,r.seed,r.cfg.diff),rows:g.rows,cols:g.cols,answers:g.answers,cells,
      used:cells.filter(c=>c.c).map(c=>c.c),
-     players:order.map(pid=>({pid,name:(r.players[pid]||{}).name||'Gone',on:(r.players[pid]||{}).on!==false,score:0})),
+     players:order.map(pid=>({pid,uid:(r.players[pid]||{}).uid||null,name:(r.players[pid]||{}).name||'Gone',on:(r.players[pid]||{}).on!==false,score:0})),
+     gid:'f-'+roomCode+'-'+(r.started||r.seed),
      turn:r.turn||0,timer:r.cfg.timer,deadline:r.deadline||0,turnStart:r.started||0,passes:r.passes||0,over:r.status==='over',wrong:r.wrong||0,
      me:order.indexOf(ME),host:r.host===ME};
   if(S.over){computeScores();clearInterval(tick)}
@@ -1065,7 +1113,7 @@ function lobbyView(){
     <button class="ghost" id="copylink">Copy link</button>
     ${versionOK(r)?'':'<p class="hint" style="color:var(--bad)">This room was made with a different version of the game. Reload the page; if it still shows this, ask the host to reload and create a new room.</p>'}
     <span class="label">Players ${order.length}/4</span>
-    <div class="players">${order.map((pid,i)=>{const p=r.players[pid];return `<div class="lp ${p.on===false?'off':''}"><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)}<span class="tag">${[pid===r.host?'host':'',pid===ME?'you':'',p.on===false?'offline':''].filter(Boolean).join(' · ')}</span></div>`}).join('')}</div>
+    <div class="players">${order.map((pid,i)=>{const p=r.players[pid];return `<div class="lp ${p.on===false?'off':''}" ${p.uid?`data-stats="${esc(p.uid)}" role="button" tabindex="0"`:''}><span class="pin" style="${pinStyle(i)}"></span>${esc(p.name)}<span class="tag">${[pid===r.host?'host':'',pid===ME?'you':'',p.on===false?'offline':''].filter(Boolean).join(' · ')}</span></div>`}).join('')}</div>
     <p class="hint">${r.cfg.n} × ${r.cfg.n} grid · ${DLABEL[r.cfg.diff||'normal']} · ${r.cfg.timer?r.cfg.timer+' s per turn':'no turn timer'}</p>
     ${isHost?`<button class="primary" id="ostart" ${order.length<2?'disabled style="opacity:.5"':''}>${order.length<2?'Waiting for players…':'Start game'}</button>`:`<p class="hint">Waiting for the host to start the game.</p>`}
     <button class="ghost" id="leave">Leave room</button></section>`;
@@ -1095,8 +1143,8 @@ const pinStyle=i=>`background:var(--p${i})`;
 const colRef=j=>'ABCDE'[j], rowRef=i=>String(i+1);
 
 function render(){
-  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
-  bind();drawLayer();fitHeaders();saveDaily();
+  app.innerHTML=`<header class="top"><h1 class="brand">Border<span>line</span></h1><button class="helpbtn" id="help">How to play</button><span class="coord">${setup.user&&!editingUser?esc(setup.user)+(S||roomCode?' · ':''):''}${S?(S.daily?'Daily #'+S.day:esc(S.code))+(S.mode==='online'?' · room '+roomCode:''):(roomCode?'room '+roomCode:(setup.user&&!editingUser?'':'grid · geography · friends'))}</span></header>`+(newVersion?`<div class="status" style="border-color:var(--sea)"><span class="who" style="white-space:normal">A new version of the game is available.</span><button class="primary" id="reload" style="padding:8px 12px;font-size:.9rem">Reload</button></div>`:'')+(screen==='stats'?statsView():S?gameView():((editingUser||(USER&&NEEDNAME))?nameView():(roomCode&&room?lobbyView():(askingPlayers?playersView():setupView()))));
+  bind();drawLayer();fitHeaders();saveDaily();recordGame();
   if(S&&!S.over&&S.timer)onTickVisual();
 }
 // Keep header labels as large as possible: shrink only the ones that would not fit their square.
@@ -1152,6 +1200,32 @@ const DEXAMPLE={
   normal:'"Landlocked" × "Flag has a star", "Coast on the Mediterranean" × "Flag has green"',
   hard:'"Borders Niger" × "Official language: French", "Coast on the Red Sea" × "Monarchy"'};
 function seg(name,opts,val){return `<div class="seg" role="group">${opts.map(([v,l])=>`<button type="button" data-seg="${name}" data-v="${v}" aria-pressed="${String(v)===String(val)}">${l}</button>`).join('')}</div>`}
+// player stats page: your own (from this device and your account) or another player's public summary (profiles/<uid>)
+let STATS_UID=null,statsBack='home';const statsCache={};
+function openStats(uid){STATS_UID=uid||null;if(screen!=='stats')statsBack=screen;screen='stats';ui.reveal=-1;
+  if(STATS_UID&&!(USER&&STATS_UID===USER.uid)&&statsCache[STATS_UID]===undefined&&initFB())
+    db.ref('profiles/'+STATS_UID).once('value').then(s=>{statsCache[STATS_UID]=s.val()||null;render()}).catch(()=>{statsCache[STATS_UID]=null;render()});
+  render();window.scrollTo(0,0)}
+function statsView(){
+  const mine=!STATS_UID||(USER&&STATS_UID===USER.uid);let st,name;
+  const back=`<div class="backline"><button class="linkbtn" id="sback">← Back</button><span class="ht">${'%NAME%'}</span></div>`;
+  if(mine){st=computeStats(loadHist(),loadGames());name=PROFILE||setup.user||'You'}
+  else{const p=statsCache[STATS_UID];
+    if(p===undefined)return `<section class="panel">${back.replace('%NAME%','Player')}<p class="hint">Loading…</p></section>`;
+    if(!p||!p.d)return `<section class="panel">${back.replace('%NAME%','Player')}<p class="hint">No stats yet for this player.</p></section>`;
+    st=p;name=p.name||'Player'}
+  const tile=(v,l)=>`<div class="st"><b>${v}</b><span>${l}</span></div>`,D=st.d,So=st.s,F=st.f,bd=So.byDiff||{};
+  const row=k=>{const x=bd[k]||{played:0,best:0,avg:0};return `<tr><td>${k[0].toUpperCase()+k.slice(1)}</td><td>${x.played}</td><td>${x.best}</td><td>${x.avg}</td></tr>`};
+  return `<section class="panel stats">${back.replace('%NAME%',esc(name))}
+    ${mine&&!USER?'<p class="hint">Guest stats stay on this device. Sign in to keep them in your account and let other players see them.</p>':''}
+    <span class="label">Today's grid</span>
+    <div class="stgrid">${tile(D.played,'played')}${tile(D.streak,'streak')}${tile(D.max,'best streak')}${tile(D.best,'best score')}${tile(D.avg,'average')}${tile(D.perfect,'perfect grids')}</div>
+    <span class="label">Solo</span>
+    <div class="stgrid">${tile(So.played,'games')}${tile(So.best,'best score')}${tile(So.avg,'average')}${tile(So.perfect,'perfect grids')}</div>
+    ${So.played?`<table class="sttab"><tr><th></th><th>Games</th><th>Best</th><th>Average</th></tr>${row('easy')}${row('normal')}${row('hard')}</table>`:''}
+    <span class="label">With friends</span>
+    <div class="stgrid">${tile(F.played,'games')}${tile(F.wins,'wins')}${tile(F.pct+'%','win rate')}${tile(F.best,'best score')}</div>
+  </section>`}
 // welcome: sign in with Google (name kept in the account, ranking, synced stats) or play as a guest on this device
 function nameView(){
   if(USER&&NEEDNAME){const first=((USER.displayName||'').trim().split(/\s+/)[0]||'').slice(0,16);
@@ -1221,7 +1295,7 @@ function homeView(){
     :other?doneCard(other.f===0?'started on another device':'played on another device',other.n||DAILY_N,[...(other.g||'').padEnd((other.n||DAILY_N)**2,'0')].map(x=>x==='1'),other.s||0,other.c||0,other.f===0?'You started it on another device with this account. One try per account.':'You played it on another device with this account.')
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
-    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}
+    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}<button class="ghost" id="mystats">Stats</button>
       ${AUTH_OK?(USER?`<span class="acct" title="${esc(USER.email||'')}">Stats synced</span><button class="ghost" id="signout">Sign out</button>`:`<button class="ghost" id="signin">Sign in to sync stats</button>`):''}</div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button>
@@ -1327,7 +1401,7 @@ function resultsView(){
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
   const top=ranked[0].score,winners=ranked.filter(p=>p.score===top);
   return `<section class="panel"><p class="big">${winners.length>1?'Draw at '+top+' points':esc(winners[0].name)+' wins'}</p>
-   <div class="podium">${ranked.map((p,r)=>`<div class="place ${p.score===top?'win':''}"><span class="rk">${r+1}</span><span class="pin" style="${pinStyle(p.i)}"></span><span class="nm">${esc(p.name)}</span><span class="pt">${p.score}</span></div><div class="bd">${breakdown(p)}</div>`).join('')}</div>
+   <div class="podium">${ranked.map((p,r)=>`<div class="place ${p.score===top?'win':''}" ${p.uid?`data-stats="${esc(p.uid)}" role="button" tabindex="0"`:''}><span class="rk">${r+1}</span><span class="pin" style="${pinStyle(p.i)}"></span><span class="nm">${esc(p.name)}</span><span class="pt">${p.score}</span></div><div class="bd">${breakdown(p)}</div>`).join('')}</div>
    <pre class="sharebox" id="share">${esc(shareText())}</pre>
    <div class="row-btns"><button class="ghost" id="copy">Share</button>${S.mode==='online'&&!S.host?'':'<button class="primary" id="again" style="flex:1">Rematch, new grid</button>'}</div>
    ${S.mode==='online'?(S.host?'':'<p class="hint">The host can start a rematch.</p>')+'<button class="ghost" id="newg">Leave room</button>':'<button class="ghost" id="newg">Change settings</button>'}</section>`;
@@ -1474,6 +1548,9 @@ function bind(){
   if($('uname')){const u=$('uname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveUser(u.value)};$('savename').onclick=()=>saveUser(u.value)}
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   if($('gsignin'))$('gsignin').onclick=signIn;
+  if($('mystats'))$('mystats').onclick=()=>openStats(USER?USER.uid:null);
+  if($('sback'))$('sback').onclick=()=>{screen=statsBack==='stats'?'home':statsBack;render()};
+  app.querySelectorAll('[data-stats]').forEach(b=>{b.onclick=()=>openStats(b.dataset.stats);b.onkeydown=e=>{if(e.key==='Enter')openStats(b.dataset.stats)}});
   if($('pickname')){const u=$('pickname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveProfile(u.value)};$('savepick').onclick=()=>saveProfile(u.value)}
   app.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{screen=b.dataset.go;render()});
   if($('signin'))$('signin').onclick=signIn;
