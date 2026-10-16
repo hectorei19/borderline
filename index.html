@@ -953,7 +953,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161900';
+const APP_VERSION='202610161915';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1489,7 +1489,7 @@ function drawLayer(){
       <li>A right answer puts its flag in the square and gives you the points. A wrong answer or running out of time ends your turn.</li>
       <li>With other players, you take turns. The game ends when the grid is full, or when every player passes one after another.</li></ul>
       <h3>Modes</h3><ul>
-      <li><b>Today's grid</b>: one ${DAILY_N} × ${DAILY_N} Normal grid, the same for everyone, new every day at midnight (Spain time). You get one try; if you leave, you continue where you stopped.</li>
+      <li><b>Today's grid</b>: one ${DAILY_N} × ${DAILY_N} Normal grid, the same for everyone, new every day at midnight CET. You get one try; if you leave, you continue where you stopped.</li>
       <li><b>Solo</b>: unlimited grids on your own, with a few more guesses than there are squares. Aim for the highest score.</li>
       <li><b>With friends</b>: 2 to 4 players online, each on their own phone. The host creates a room and shares its 4-letter code or link; the others join with it.</li></ul>
       <h3>Difficulty</h3><ul>
