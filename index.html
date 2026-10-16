@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Barlow+Semi+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -207,12 +208,21 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--sea-soft)}
 .hcard .dboard{width:100%;margin-top:8px}
 .hrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qrules{gap:6px}.qrules .hint{font-size:1rem}
+.userline{flex-wrap:wrap}
+.acct{margin-left:auto;font-family:var(--mono);font-size:.75rem;color:var(--good)}
+.userline #signin{margin-left:auto}
 .hrow .hcard>.ht{font-size:1.4rem}
 .dsum{display:flex;align-items:center;gap:16px;margin:4px 0}
 .dsq{display:grid;gap:4px;width:88px;flex:none}
 .dsq i{aspect-ratio:1;border-radius:3px;background:var(--rule)}
 .dsq i.on{background:var(--good)}
 .dtxt{display:flex;flex-direction:column;gap:2px}
+.dstats{margin-left:auto;display:flex;flex-direction:column;gap:4px;padding-left:16px;border-left:1px solid var(--rule);font-size:.9rem;color:var(--ink-2)}
+.dstats>span{white-space:nowrap}
+.dstats b{font-family:var(--display);font-weight:900;font-size:1.3rem;color:var(--ink);margin-right:5px}
+.dtxt .ht{white-space:nowrap}
+@media (max-width:420px){.dsum{gap:12px}.dsq{width:72px}.dtxt .ht{font-size:1.35rem}.dstats{padding-left:12px}.dstats b{font-size:1.15rem}}
 .dtxt .ht{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:1.7rem;line-height:1;letter-spacing:.02em}
 .dtxt .hs{color:var(--ink-2)}
 .testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1.5px dashed var(--bad);border-radius:6px;font-family:var(--mono);font-size:.8rem;color:var(--bad)}
@@ -619,7 +629,19 @@ function msToNextDay(){const p=madridParts(now());return (24*3600-(+p.hour*3600+
 // the same seed for everyone on a given day; step on until the seed gives a grid that can be completed
 function dailySeed(key){let h=2166136261;for(const ch of 'borderline-daily-'+key){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return h%7962624}
 function loadDaily(){try{const d=JSON.parse(localStorage.getItem('bl-daily')||'null');return d&&d.date===todayKey()?d:null}catch(e){return null}}
-function saveDaily(){if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}}
+function saveDaily(){if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}
+  if(S&&S.daily&&S.over)recordDaily(S)}
+/* ---- daily stats: one entry per played day {date:{s:score,c:squares,n:size}}, kept on the device
+   and, when signed in with Google, in Firebase (users/<uid>/daily) so they follow you to other devices ---- */
+function loadHist(){try{return JSON.parse(localStorage.getItem('bl-hist')||'{}')||{}}catch(e){return {}}}
+function saveHist(h){try{localStorage.setItem('bl-hist',JSON.stringify(h))}catch(e){}}
+function recordDaily(s){if(TESTDAY)return;const h=loadHist(),p=s.players[0],e={s:p.score,c:p.cells,n:s.n};
+  const old=h[s.daily];if(old&&old.s===e.s&&old.c===e.c)return;
+  h[s.daily]=e;saveHist(h);if(USER&&db)db.ref('users/'+USER.uid+'/daily/'+s.daily).set(e).catch(()=>{})}
+function dailyStats(){const h=loadHist(),days=Object.keys(h).sort(),day=k=>Math.round(Date.parse(k+'T12:00Z')/864e5);
+  let streak=0;const today=day(todayKey());let d=h[todayKey()]?today:today-1;
+  const set=new Set(days.map(day));while(set.has(d)){streak++;d--}
+  return {played:days.length,streak,best:days.length?Math.max(...days.map(k=>h[k].s)):0}}
 // today's grid is built once per day and kept, so the home screen can show it before you play
 let dailyCache=null;
 // a day listed in DAILY_FIXED always gets that grid; it is rebuilt from the category labels and checked again
@@ -781,10 +803,29 @@ function initFB(){
   return true;
 }
 const TS=()=>firebase.database.ServerValue.TIMESTAMP;
+
+/* ---- optional Google sign-in (Firebase Authentication): only used to keep your daily stats in sync between devices ---- */
+let USER=null;
+const AUTH_OK=FB_OK&&typeof firebase.auth==='function';
+function initAuth(){if(!AUTH_OK||!initFB())return;
+  firebase.auth().onAuthStateChanged(u=>{USER=u||null;if(USER)syncHist();render()});
+  firebase.auth().getRedirectResult().catch(e=>authError(e))}
+function authError(e){const c=(e&&e.code)||'';if(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request')return;
+  toast(c==='auth/unauthorized-domain'||c==='auth/operation-not-allowed'?'Sign-in is not set up yet for this site.':'Could not sign in. Try again.','bad')}
+function signIn(){if(!AUTH_OK||!initFB()){toast('Sign-in is not available here.','bad');return}
+  const p=new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(p).catch(e=>{if(e&&e.code==='auth/popup-blocked')firebase.auth().signInWithRedirect(p);else authError(e)})}
+function signOut(){if(AUTH_OK)firebase.auth().signOut()}
+// merge the stats saved in your account with the ones on this device (same day: keep the higher score) and save both ways
+function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/daily');
+  ref.once('value').then(snap=>{const remote=snap.val()||{},local=loadHist(),up={};
+    for(const [k,v] of Object.entries(remote))if(!local[k]||local[k].s<v.s)local[k]=v;
+    for(const [k,v] of Object.entries(local))if(!remote[k]||remote[k].s<v.s)up[k]=v;
+    saveHist(local);if(Object.keys(up).length)ref.update(up).catch(()=>{});render()}).catch(()=>{})}
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161000';
+const APP_VERSION='202610161100';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1074,10 +1115,11 @@ function homeView(){
   const done=d&&d.S.over,p=done&&d.S.players[0];
   const daily=done
     // played: green squares for the answers you got, grey for the rest (like the shared result); tap to see the full grid
-    ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="dsum"><span class="dsq" style="grid-template-columns:repeat(${d.S.n},1fr)" aria-hidden="true">${d.S.cells.map(c=>`<i class="${c.o>=0?'on':''}"></i>`).join('')}</span><span class="dtxt"><span class="ht">${p.score} points</span><span class="hs">${p.cells} of ${d.S.n*d.S.n} squares</span></span></span><span class="hs">Tap to see your grid and share it.</span><span class="hm">Next grid in ${next}</span></button>`
+    ?`<button class="hcard" id="daily"><span class="hm">Today's grid #${dayNumber(key)} · done</span><span class="dsum"><span class="dsq" style="grid-template-columns:repeat(${d.S.n},1fr)" aria-hidden="true">${d.S.cells.map(c=>`<i class="${c.o>=0?'on':''}"></i>`).join('')}</span><span class="dtxt"><span class="ht">${p.score} points</span><span class="hs">${p.cells} of ${d.S.n*d.S.n} squares</span></span>${(st=>`<span class="dstats"><span><b>${st.streak}</b>streak</span><span><b>${st.played}</b>played</span><span><b>${st.best}</b>best</span></span>`)(dailyStats())}</span><span class="hs">Tap to see your grid and share it.</span><span class="hm">Next grid in ${next}</span></button>`
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
-    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button></div>
+    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}<button class="ghost" id="chname">Change</button>
+      ${AUTH_OK?(USER?`<span class="acct" title="${esc(USER.email||'')}">Stats synced</span><button class="ghost" id="signout">Sign out</button>`:`<button class="ghost" id="signin">Sign in to sync stats</button>`):''}</div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button></div>`:''}
     <div class="hrow">
@@ -1085,12 +1127,7 @@ function homeView(){
     <button class="hcard" data-go="friends"><span class="ht">With friends</span><span class="hs">Play online, each on your own phone. 2 to 4 players.</span></button>
     </div>
   </section>
-  <section class="panel"><span class="label">Quick rules</span><ul class="rules">
-    <li>Fill each square with a country that matches its row <em>and</em> its column.</li>
-    <li>Each country once per grid. Tap <span class="ib">i</span> to see what a category means.</li>
-    <li>Harder squares, quick answers and full lines score more.</li>
-    <li>Full rules: <b>How to play</b> at the top.</li>
-  </ul></section>`;
+  <section class="panel qrules"><span class="label">Quick rules</span><p class="hint">Name a country that fits its row <em>and</em> its column, each country once per grid. Tap <span class="ib">i</span> to see what a category means. Full rules in <b>How to play</b>.</p></section>`;
 }
 function setupView(){
   if(screen==='home')return homeView();
@@ -1250,7 +1287,7 @@ function drawLayer(){
         <dt>Fonts</dt>
         <dd>Big Shoulders Display, Barlow Semi Condensed and JetBrains Mono, from <a href="https://fonts.google.com" target="_blank" rel="noopener">Google Fonts</a>, under the SIL Open Font License.</dd>
         <dt>Online play</dt>
-        <dd>Rooms run on <a href="https://firebase.google.com" target="_blank" rel="noopener">Firebase Realtime Database</a>. Only room codes, player names and moves are stored.</dd>
+        <dd>Rooms run on <a href="https://firebase.google.com" target="_blank" rel="noopener">Firebase Realtime Database</a>. Only room codes, player names and moves are stored. If you sign in with Google to sync your stats, your account's anonymous Firebase id and your daily scores (date, points, squares) are stored too, readable only by you; sign out at any time from the home screen.</dd>
         <dt>Accuracy</dt>
         <dd>Borders, languages and currencies change and can be disputed. The game follows the data above; if an answer looks wrong, tap the category's <span class="ib">i</span> to see the exact rule used.</dd>
       </dl>
@@ -1333,6 +1370,8 @@ function bind(){
   if($('uname')){const u=$('uname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveUser(u.value)};$('savename').onclick=()=>saveUser(u.value)}
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   app.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{screen=b.dataset.go;render()});
+  if($('signin'))$('signin').onclick=signIn;
+  if($('signout'))$('signout').onclick=signOut;
   if($('dreset'))$('dreset').onclick=()=>{try{localStorage.removeItem('bl-daily')}catch(e){}dailyCache=null;S=null;toast('Today\'s grid reset (test mode).','good');render()};
   app.querySelectorAll('[data-dcell]').forEach(b=>b.onclick=()=>{const ci=+b.dataset.dcell;playDaily();
     if(S&&S.daily&&!S.over&&S.cells[ci].o<0){ui.sel=ci;ui.query='';render()}});
@@ -1375,6 +1414,7 @@ function start(data){
   try{const q=new URLSearchParams(location.search).get('room');if(q&&/^[A-Za-z]{4}$/.test(q)){setup.mode='online';setup.join=q.toUpperCase();screen='friends'}}catch(e){}
   // a shared result link (?grid=4E-KQPMT) opens the setup screen ready to play that same grid
   try{const g=new URLSearchParams(location.search).get('grid');if(g&&parseCode(g)){setup.code=g.trim().toUpperCase();if(setup.mode==='online')setup.mode='solo';screen='solo';if(S&&S.mode!=='online')S=null}}catch(e){}
+  initAuth();
   if(FB_OK&&!S){let saved='';try{saved=localStorage.getItem('bl-room')||''}catch(e){}
     if(saved&&initFB()){listenRoom(saved)}}
   render();
