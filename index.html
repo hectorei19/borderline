@@ -1038,7 +1038,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610162310';
+const APP_VERSION='202610162330';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1388,7 +1388,7 @@ function homeView(){
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}
-      ${AUTH_OK?(USER?`<button class="ghost" id="signout">Sign out</button>`:`<span class="uright"><button class="ghost" id="signin">Sign in to sync stats</button>`):''}${AUTH_OK&&!USER?'':'<span class="uright">'}${menuBtn()}</span></div>
+      ${AUTH_OK?(USER?'':`<span class="uright"><button class="ghost" id="signin">Sign in to sync stats</button>`):''}${AUTH_OK&&!USER?'':'<span class="uright">'}${menuBtn()}</span></div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button>
       <small class="tdiag">${(()=>{const a=ACCT_TODAY,hh=loadHist()[key],l=loadDaily();return `version ${APP_VERSION} · this device ${ME}<br>account today: ${USER?(a?`device ${a.d||'none'}, ${a.s} pts, ${a.f===1?'finished':a.f===0?'started':'old format'}, full game ${a.j?'yes':'no'}`:'nothing'):'not signed in'}<br>this device today: ${l?(l.S.over?l.S.players[0].score+' pts, finished':'in progress'):'nothing'} · stats today: ${hh?hh.s+' pts':'none'}`})()}</small></div>`:''}
