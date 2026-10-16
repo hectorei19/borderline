@@ -885,7 +885,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610161430';
+const APP_VERSION='202610161445';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1443,7 +1443,11 @@ function bind(){
   if($('signin'))$('signin').onclick=signIn;
   if($('signin2'))$('signin2').onclick=signIn;
   if($('signout'))$('signout').onclick=signOut;
-  if($('dreset'))$('dreset').onclick=()=>{try{localStorage.removeItem('bl-daily')}catch(e){}dailyCache=null;S=null;toast('Today\'s grid reset (test mode).','good');render()};
+  // test reset: forget today's game on this device and, when signed in, in the account too (the public ranking keeps its first result)
+  if($('dreset'))$('dreset').onclick=()=>{try{localStorage.removeItem('bl-daily');const h=loadHist();delete h[todayKey()];saveHist(h)}catch(e){}
+    dailyCache=null;S=null;dailyUp='';
+    if(USER&&db&&!TESTDAY)db.ref('users/'+USER.uid+'/daily/'+todayKey()).remove().catch(()=>{});
+    toast('Today\'s grid reset (test mode).','good');render()};
   app.querySelectorAll('[data-dcell]').forEach(b=>b.onclick=()=>{const ci=+b.dataset.dcell;playDaily();
     if(S&&S.daily&&!S.over&&S.cells[ci].o<0){ui.sel=ci;ui.query='';render()}});
   if($('home'))$('home').onclick=()=>{screen='home';setup.code='';clearGridParam();render()};
