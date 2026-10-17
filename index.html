@@ -715,8 +715,11 @@ function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1),t
   db.ref('users/'+USER.uid+'/daily/'+s.daily).transaction(cur=>!cur||!cur.d||cur.d===ME?full:undefined)
     .then(r=>{if(r.committed)submitLB(s.daily,e)}).catch(()=>{dailyUp=''})}
 // another device of the account finished today's grid: take its whole game, so this device shows exactly the same
-// the account decides: it replaces whatever this device has for today, even a game finished here
-function adoptDaily(a){if(!a||!otherDevice(a)||a.f!==1||!a.j)return;const loc=loadDaily();if(loc&&loc.S.over&&loc.S.adopted===a.d+a.s)return;
+// the account decides: it replaces whatever this device has for today, even a game finished here.
+// A game finished on this device comes back too when the device lost it (signing out clears the device)
+function adoptDaily(a){if(!a||a.f!==1||!a.j)return;const loc=loadDaily();
+  if(!otherDevice(a)){if(loc)return;try{const s=JSON.parse(a.j);if(s&&s.daily===todayKey()&&s.over){localStorage.setItem('bl-daily',JSON.stringify({date:s.daily,S:s}));if(S&&S.daily===todayKey()&&!S.over)S=null}}catch(e){}return}
+  if(loc&&loc.S.over&&loc.S.adopted===a.d+a.s)return;
   try{const s=JSON.parse(a.j);if(s&&s.daily===todayKey()&&s.over){s.adopted=a.d+a.s;localStorage.setItem('bl-daily',JSON.stringify({date:s.daily,S:s}));if(S&&S.daily===todayKey())S=null}}catch(e){}}
 /* ---- daily ranking: leaderboard/<date>/<uid> = {name, s, c, t}; anyone can read it, each account
    writes its own result once (Firebase rules refuse a second write) ---- */
@@ -802,6 +805,7 @@ function dailyGrid(day){const key=day||todayKey();if(dailyCache&&dailyCache.key=
   while(!g&&k++<50){seed=(seed+1)%7962624;g=generate(DAILY_N,seed,DAILY_DIFF)}
   return dailyCache=g?{key,seed,g}:null}
 function playDaily(){
+  if(USER)adoptDaily(ACCT_TODAY); // the account's finished game first, so it can't be started again here
   const saved=loadDaily();
   if(USER&&otherDevice(ACCT_TODAY)&&!(saved&&saved.S.over)){toast('You already played today\'s grid with this account on another device.','bad');render();return}
   if(saved){S=saved.S;ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};if(!S.over)startTurn();render();return}
@@ -1043,7 +1047,8 @@ const AUTH_OK=FB_OK&&typeof firebase.auth==='function';
 function watchToday(){if(acctRef){acctRef.off();acctRef=null}ACCT_TODAY=null;if(!USER||!db||TESTDAY)return;
   acctRef=db.ref('users/'+USER.uid+'/daily/'+todayKey());
   acctRef.on('value',s=>{ACCT_TODAY=s.val();
-    if(otherDevice(ACCT_TODAY)){const h=loadHist(),{j,...entry}=ACCT_TODAY;h[todayKey()]=entry;saveHist(h);adoptDaily(ACCT_TODAY)}
+    if(otherDevice(ACCT_TODAY)){const h=loadHist(),{j,...entry}=ACCT_TODAY;h[todayKey()]=entry;saveHist(h)}
+    adoptDaily(ACCT_TODAY);
     if(!S||S.daily)render()})}
 function initAuth(){if(!AUTH_OK||!initFB())return;
   firebase.auth().onAuthStateChanged(u=>{USER=u||null;PROFILE=null;NEEDNAME=false;watchToday();if(USER){loadProfile();syncHist();syncGames().then(publishSoon);syncArch()}else ARCH_REMOTE=null;render()});
@@ -1071,7 +1076,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610171330';
+const APP_VERSION='202610171615';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
