@@ -252,6 +252,10 @@ button.hcard:hover,button.hcard:active{border-color:var(--sea);background:var(--
 .orline{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:.9rem}
 .orline::before,.orline::after{content:"";flex:1;border-top:1px solid var(--rule)}
 .acct{margin-left:auto;font-family:var(--mono);font-size:.75rem;color:var(--good)}
+.gbanner{display:flex;align-items:center;gap:10px;background:var(--sea-soft);border:1px solid var(--sea);border-radius:8px;padding:10px 12px;font-weight:600}
+.gbanner span{flex:1}
+.gbanner .primary{padding:6px 14px;font-size:.9rem}
+.gbanner .linkbtn{text-decoration:none;color:var(--ink-2);padding:4px}
 .userline .uright{margin-left:auto;display:flex;align-items:center;gap:8px}
 .hrow .hcard>.ht{font-size:1.4rem}
 .dsum{display:flex;align-items:center;gap:16px;margin:4px 0}
@@ -702,6 +706,7 @@ function recordDaily(s){if(TESTDAY)return;const h=loadHist(),e=dailyEntry(s,1),t
   const old=h[s.daily],same=old&&old.s===e.s&&old.c===e.c&&old.f===1&&old.d===ME;
   if(!same){h[s.daily]=e;saveHist(h);publishSoon()}
   if(!USER||!db||!today)return;
+  if(s.guest&&!s.first)return; // played as a guest after another game of the day on this device: stays out of the account
   // the account keeps the whole finished game (j), so every device of the account shows the same grid;
   // the result joins the public ranking only once the account confirms today's try is this device's
   if(ACCT_TODAY&&ACCT_TODAY.d===ME&&ACCT_TODAY.f===1&&ACCT_TODAY.j){submitLB(s.daily,e);return}
@@ -736,7 +741,7 @@ function lbView(date){if(!FB_OK||TESTDAY)return '';
   const rows=lbRows(),me=USER&&USER.uid,i=rows.findIndex(r=>r.uid===me);
   const row=(r,k)=>`<li class="${r.uid===me?'me':''}" data-stats="${esc(r.uid)}" role="button" tabindex="0"><span class="rk">${k+1}</span><span class="nm">${esc(r.name||'Player')}</span><span class="sq">${r.c}/${DAILY_N*DAILY_N}</span><span class="pt">${r.s}</span></li>`;
   const list=rows.slice(0,10).map(row).join('')+(i>=10?`<li class="gap">…</li>`+row(rows[i],i):'');
-  const foot=!USER?(AUTH_OK?`<button class="ghost" id="signin2">Sign in to join the ranking</button>`:''):i<0?`<p class="hint">Your result joins the ranking when you finish today's grid signed in.</p>`:'';
+  const foot=!USER?(AUTH_OK?`<button class="ghost" id="signin2">Sign in to join today's ranking</button>${carryable(loadDaily())?'<p class="hint">Your result is added when you sign in.</p>':''}`:''):i<0?`<p class="hint">Your result joins the ranking when you finish today's grid signed in.</p>`:'';
   return `<section class="panel lb"><span class="label">Today's ranking${rows.length?` · ${rows.length} player${rows.length===1?'':'s'}`:''}</span>${rows.length?`<ol class="lbl">${list}</ol>`:`<p class="hint">Nobody in today's ranking yet.</p>`}${foot}</section>`}
 function lbMine(){if(!USER||!LB)return null;const rows=lbRows(),i=rows.findIndex(r=>r.uid===USER.uid);
   return i<0?null:{rank:i+1,total:rows.length,top:Math.max(1,Math.round((i+1)/rows.length*100))}}
@@ -806,6 +811,9 @@ function playDaily(){
   S={mode:'solo',daily:key,day:dayNumber(key),n:DAILY_N,seed,diff:DAILY_DIFF,code:makeCode(DAILY_N,seed,DAILY_DIFF),rows:g.rows,cols:g.cols,answers:g.answers,
      cells:g.answers.map(()=>({o:-1,c:null})),used:[],players:[{name:setup.user||'You',score:0}],turn:0,
      guesses:DAILY_N*DAILY_N+DAILY_N,timer:0,deadline:0,passes:0,over:false,wrong:0};
+  // a guest's result can join the account later (sign in after playing), but only for the first game of the day on this device
+  try{S.first=localStorage.getItem('bl-dfirst')!==key;localStorage.setItem('bl-dfirst',key)}catch(e){S.first=false}
+  S.guest=!USER;
   ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};
   startTurn(true);render();
   // signed in: claim today's try for this device as soon as the game starts; if another device got there first, stop
@@ -834,6 +842,8 @@ function recordArchive(s){if(!USER||!db||TESTDAY||archUp.has(s.daily))return;
     .then(x=>{if(x.committed&&ARCH_REMOTE)ARCH_REMOTE[s.daily]=full}).catch(()=>archUp.delete(s.daily))}
 // the day's own try (from the daily stats: this device's or the account's): an archive grid you played on its day
 const onDay=k=>loadHist()[k]||null;
+// the guest banner on the home screen, once closed, stays closed on this device
+const noBanner=()=>{try{return localStorage.getItem('bl-nobanner')==='1'}catch(e){return false}};
 function archDates(){const out=[],end=Date.parse(todayKey()+'T12:00Z');let d=Date.parse(DAILY_FIRST+'T12:00Z');
   while(d<end){out.push(new Date(d).toISOString().slice(0,10));d+=864e5}
   // today's grid joins the list as soon as you have finished it, so the archive lists every grid you played
@@ -1016,7 +1026,11 @@ const TS=()=>firebase.database.ServerValue.TIMESTAMP;
 let USER=null,ACCT_TODAY=null,acctRef=null,PROFILE=null,NEEDNAME=false;
 // the account's name: chosen once (users/<uid>/profile), then fixed; it is also the name shown in the ranking
 function applyProfile(name){PROFILE=name;NEEDNAME=false;const old=setup.user;setup.user=name;editingUser=false;
-  if(!setup.names[0]||setup.names[0]===old)setup.names[0]=name;try{localStorage.setItem('bl-user',name)}catch(e){}publishSoon();render()}
+  if(!setup.names[0]||setup.names[0]===old)setup.names[0]=name;try{localStorage.setItem('bl-user',name)}catch(e){}publishSoon();carryDaily();render()}
+// signed in after finishing today's grid as a guest: the result joins the account and today's ranking
+// (only the first game of the day on this device, and only if the account hasn't played today: recordDaily checks that)
+const carryable=d=>!!d&&d.S.over&&d.S.guest&&d.S.first;
+function carryDaily(){const d=loadDaily();if(USER&&carryable(d))recordDaily(d.S)}
 function loadProfile(){if(!USER||!db)return;const uid=USER.uid;
   db.ref('users/'+uid+'/profile').once('value').then(s=>{if(!USER||USER.uid!==uid)return;const v=s.val();
     if(v&&v.name)applyProfile(v.name);else{NEEDNAME=true;render()}}).catch(()=>{})}
@@ -1040,11 +1054,11 @@ function signIn(){if(!AUTH_OK||!initFB()){toast('Sign-in is not available here.'
   const p=new firebase.auth.GoogleAuthProvider();
   firebase.auth().signInWithPopup(p).catch(e=>{if(e&&e.code==='auth/popup-blocked')firebase.auth().signInWithRedirect(p);else authError(e)})}
 // signing out leaves the device clean: the account's name, today's grid, stats, games and archive go
-// (they stay in the account and come back when you sign in again) and the game asks who's playing
+// (they stay in the account and come back when you sign in again) and you go on as Guest
 function signOut(){if(!AUTH_OK)return;firebase.auth().signOut().then(()=>{
   for(const k of ['bl-daily','bl-hist','bl-games','bl-arch','bl-user'])try{localStorage.removeItem(k)}catch(e){}
-  if(setup.names[0]===setup.user)setup.names[0]='';setup.user='';try{localStorage.setItem('bl-setup',JSON.stringify({...setup,code:''}))}catch(e){}
-  S=null;screen='home';ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};editingUser=true;render();window.scrollTo(0,0)}).catch(()=>{})}
+  if(setup.names[0]===setup.user)setup.names[0]='';setup.user='Guest';try{localStorage.setItem('bl-setup',JSON.stringify({...setup,code:''}))}catch(e){}
+  S=null;screen='home';ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};editingUser=false;render();window.scrollTo(0,0)}).catch(()=>{})}
 // merge the stats saved in your account with the ones on this device and save both ways;
 // a day already in the account always wins (one try per account), days only on this device are uploaded
 function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/daily');
@@ -1057,7 +1071,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610171200';
+const APP_VERSION='202610171330';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1069,19 +1083,26 @@ const versionOK=r=>!r.v||r.v===APP_VERSION;
 function freshSeed(n,diff){for(let i=0;i<30;i++){const sd=randSeed();if(gridFor(n,sd,diff))return sd}return 1}
 function lobbyOrder(r){return Object.entries(r.players||{}).sort((a,b)=>(a[1].t||0)-(b[1].t||0)).map(x=>x[0])}
 
+// the name the others see in a room: the account's name, or the one a guest typed on the With friends screen
+const roomName=()=>USER?setup.user:(setup.fname||'').trim();
+function needRoomName(){if(USER)return false;const el=document.getElementById('fname');if(el)setup.fname=el.value.trim().slice(0,16);
+  try{localStorage.setItem('bl-setup',JSON.stringify({...setup,code:''}))}catch(e){}
+  if(roomName())return false;toast("Type your name so your friends know who's playing.",'bad');if(el)el.focus();return true}
 async function createRoom(){
+  if(needRoomName())return;
   if(!initFB()){toast('Online play is not set up on this copy of the site.','bad');return}
   try{
     let code='';
     for(let i=0;i<8;i++){code=randRoom();const ex=await db.ref('rooms/'+code).get();if(!ex.exists())break}
     await db.ref('rooms/'+code).set({v:APP_VERSION,host:ME,created:TS(),cfg:{n:setup.n,timer:setup.timer,diff:setup.diff||'normal'},status:'lobby',
-      players:{[ME]:{name:setup.user,t:TS(),on:true,...(USER?{uid:USER.uid}:{})}}});
+      players:{[ME]:{name:roomName(),t:TS(),on:true,...(USER?{uid:USER.uid}:{})}}});
     listenRoom(code);
   }catch(e){console.error(e);toast('Could not create the room. Check the connection and try again.','bad')}
 }
 async function joinRoom(raw){
   const code=(raw||'').toUpperCase().replace(/[^A-Z]/g,'');
   if(code.length!==4){toast('Room codes have 4 letters.','bad');return}
+  if(needRoomName())return;
   if(!initFB()){toast('Online play is not set up on this copy of the site.','bad');return}
   if(joining)return;joining=true;
   try{
@@ -1091,10 +1112,10 @@ async function joinRoom(raw){
       if(!r)return r;
       r.players=r.players||{};
       if(r.v&&r.v!==APP_VERSION){why='version';return}
-      if(r.players[ME]){r.players[ME].name=setup.user;r.players[ME].on=true;if(USER)r.players[ME].uid=USER.uid;return r}
+      if(r.players[ME]){r.players[ME].name=roomName();r.players[ME].on=true;if(USER)r.players[ME].uid=USER.uid;return r}
       if(r.status!=='lobby'){why='started';return}
       if(Object.keys(r.players).length>=6){why='full';return}
-      r.players[ME]={name:setup.user,t:Date.now()+offset,on:true,...(USER?{uid:USER.uid}:{})};return r;
+      r.players[ME]={name:roomName(),t:Date.now()+offset,on:true,...(USER?{uid:USER.uid}:{})};return r;
     });
     const val=res.snapshot.val();
     if(!val){toast('No room called '+code+'. Check the code.','bad');return}
@@ -1342,12 +1363,6 @@ function nameView(){
       <input id="pickname" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(setup.user||first)}">
       <p class="hint">It appears in the daily ranking and on your results. Choose carefully: it stays with your account and can't be changed later.</p>
       <button class="primary" id="savepick">Save name</button></section>`}
-  if(AUTH_OK&&!USER)return `<section class="panel namecard"><p class="big">Who's playing?</p>
-    <button class="primary" id="gsignin">Continue with Google</button>
-    <p class="hint">Your name stays with your account: you join the daily ranking and your stats follow you on every device.</p>
-    <div class="orline"><span>or</span></div>
-    <button class="ghost" id="guest">Play as guest</button>
-    <p class="hint">No name needed. Guests don't appear in the ranking, and their stats stay on this device.</p></section>`;
   // without Google sign-in (Firebase not reachable) the name is typed and stays on this device
   return `<section class="panel namecard"><p class="big">Who's playing?</p>
     <label class="label" for="uname">Your name</label>
@@ -1410,7 +1425,8 @@ function homeView(){
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
     <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER||AUTH_OK?'':'<button class="ghost" id="chname">Change</button>'}
-      ${AUTH_OK?(USER?'':`<span class="uright"><button class="ghost" id="signin">Sign in to sync stats</button>`):''}${AUTH_OK&&!USER?'':'<span class="uright">'}${menuBtn()}</span></div>
+      ${AUTH_OK&&!USER&&noBanner()?`<span class="uright"><button class="ghost" id="signin">Sign in</button>`:'<span class="uright">'}${menuBtn()}</span></div>
+    ${AUTH_OK&&!USER&&!noBanner()?`<div class="gbanner"><span>Sign in to join the daily ranking</span><button class="primary" id="bsignin">Sign in</button><button class="linkbtn" id="bclose" aria-label="Close">✕</button></div>`:''}
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button>
       <small class="tdiag">${(()=>{const a=ACCT_TODAY,hh=loadHist()[key],l=loadDaily();return `version ${APP_VERSION} · this device ${ME}<br>account today: ${USER?(a?`device ${a.d||'none'}, ${a.s} pts, ${a.f===1?'finished':a.f===0?'started':'old format'}, full game ${a.j?'yes':'no'}`:'nothing'):'not signed in'}<br>this device today: ${l?(l.S.over?l.S.players[0].score+' pts, finished':'in progress'):'nothing'} · stats today: ${hh?hh.s+' pts':'none'}`})()}</small></div>`:''}
@@ -1435,6 +1451,7 @@ function setupView(){
     <div class="field"><span class="label">Difficulty</span>${seg('diff',[['easy','Easy'],['normal','Normal'],['hard','Hard']],setup.diff||'normal')}<p class="hint">${DHINT[setup.diff||'normal']}</p></div>
     <div class="field"><span class="label">Grid size</span>${seg('n',[[3,'3 × 3'],[4,'4 × 4'],[5,'5 × 5']],setup.n)}</div>`}
     <div class="field"><span class="label">Time per turn</span>${seg('timer',[[0,'Off'],[10,'10 s'],[30,'30 s']],setup.timer)}</div>
+    ${on&&!USER?`<div class="field"><label class="label" for="fname">Your name in the room</label><input id="fname" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(setup.fname||'')}"><p class="hint">So your friends know who's playing.</p></div>`:''}
     ${on?`<div class="field">${FB_OK?'':'<p class="hint">Online play only works on the published site with Firebase connected.</p>'}<button class="primary" id="create" ${FB_OK?'':'disabled style="opacity:.5"'}>Create room</button></div>
     <div class="field"><label class="label" for="jcode">Join a friend's room</label><div class="joinrow"><input class="code-in" id="jcode" placeholder="ABCD" maxlength="4" value="${esc(setup.join||'')}" autocomplete="off"><button class="ghost" id="join" ${FB_OK?'':'disabled'}>Join</button></div></div>`:`
     <button class="primary" id="start">${vs?'Next: player names':'Start game'}</button>`}
@@ -1678,7 +1695,8 @@ function bind(){
   if($('backsetup'))$('backsetup').onclick=()=>{askingPlayers=false;render()};
   app.querySelectorAll('[data-pn]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'){const nx=document.getElementById('pname'+(+inp.dataset.pn+1));if(nx)nx.focus();else confirmPlayers()}});
   if($('uname')){const u=$('uname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveUser(u.value)};$('savename').onclick=()=>saveUser(u.value)}
-  if($('guest'))$('guest').onclick=()=>saveUser('Guest');
+  if($('bsignin'))$('bsignin').onclick=signIn;
+  if($('bclose'))$('bclose').onclick=()=>{try{localStorage.setItem('bl-nobanner','1')}catch(e){}render()};
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   if($('gsignin'))$('gsignin').onclick=signIn;
   if($('mystats'))$('mystats').onclick=()=>openStats(USER?USER.uid:null);
@@ -1730,7 +1748,8 @@ function selectShare(){const el=document.getElementById('share');if(!el)return;c
 function start(data){
   const keepUser=setup.user;
   if(data&&data.S){S=data.S;setup={...setup,...(data.setup||{})};}
-  setup.user=setup.user||keepUser||'';
+  // nobody has to pick a name to play: without one you are Guest (sign in later from the home screen or the menu)
+  setup.user=setup.user||keepUser||(AUTH_OK?'Guest':'');
   editingUser=!setup.user;
   if(editingUser||(S&&S.mode==='online'))S=null;
   if(S&&!S.over)startTurn();
