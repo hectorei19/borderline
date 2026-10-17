@@ -1039,7 +1039,12 @@ function authError(e){const c=(e&&e.code)||'';if(c==='auth/popup-closed-by-user'
 function signIn(){if(!AUTH_OK||!initFB()){toast('Sign-in is not available here.','bad');return}
   const p=new firebase.auth.GoogleAuthProvider();
   firebase.auth().signInWithPopup(p).catch(e=>{if(e&&e.code==='auth/popup-blocked')firebase.auth().signInWithRedirect(p);else authError(e)})}
-function signOut(){if(AUTH_OK)firebase.auth().signOut()}
+// signing out leaves the device clean: the account's name, today's grid, stats, games and archive go
+// (they stay in the account and come back when you sign in again) and the game asks who's playing
+function signOut(){if(!AUTH_OK)return;firebase.auth().signOut().then(()=>{
+  for(const k of ['bl-daily','bl-hist','bl-games','bl-arch','bl-user'])try{localStorage.removeItem(k)}catch(e){}
+  if(setup.names[0]===setup.user)setup.names[0]='';setup.user='';try{localStorage.setItem('bl-setup',JSON.stringify({...setup,code:''}))}catch(e){}
+  S=null;screen='home';ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};editingUser=true;render();window.scrollTo(0,0)}).catch(()=>{})}
 // merge the stats saved in your account with the ones on this device and save both ways;
 // a day already in the account always wins (one try per account), days only on this device are uploaded
 function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/daily');
@@ -1052,7 +1057,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610171100';
+const APP_VERSION='202610171130';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
