@@ -1057,7 +1057,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610171130';
+const APP_VERSION='202610171200';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1342,15 +1342,18 @@ function nameView(){
       <input id="pickname" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(setup.user||first)}">
       <p class="hint">It appears in the daily ranking and on your results. Choose carefully: it stays with your account and can't be changed later.</p>
       <button class="primary" id="savepick">Save name</button></section>`}
-  const g=AUTH_OK&&!USER;
-  return `<section class="panel namecard"><p class="big">Who's playing?</p>
-    ${g?`<button class="primary" id="gsignin">Continue with Google</button>
+  if(AUTH_OK&&!USER)return `<section class="panel namecard"><p class="big">Who's playing?</p>
+    <button class="primary" id="gsignin">Continue with Google</button>
     <p class="hint">Your name stays with your account: you join the daily ranking and your stats follow you on every device.</p>
-    <div class="orline"><span>or play as a guest</span></div>`:''}
-    <label class="label" for="uname">${g?'Guest name':'Your name'}</label>
+    <div class="orline"><span>or</span></div>
+    <button class="ghost" id="guest">Play as guest</button>
+    <p class="hint">No name needed. Guests don't appear in the ranking, and their stats stay on this device.</p></section>`;
+  // without Google sign-in (Firebase not reachable) the name is typed and stays on this device
+  return `<section class="panel namecard"><p class="big">Who's playing?</p>
+    <label class="label" for="uname">Your name</label>
     <input id="uname" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(setup.user)}">
-    <p class="hint">${g?'Guests don\'t appear in the ranking, and their stats stay on this device.':'Shown on the grid, the scoreboard and the result you share. It stays on this device.'}</p>
-    <button class="${g?'ghost':'primary'}" id="savename">${g?'Play as guest':setup.user?'Save name':'Continue'}</button></section>`;
+    <p class="hint">Shown on the grid, the scoreboard and the result you share. It stays on this device.</p>
+    <button class="primary" id="savename">${setup.user?'Save name':'Continue'}</button></section>`;
 }
 function playersView(){
   return `<section class="panel namecard"><p class="big">Who's playing?</p>
@@ -1406,7 +1409,7 @@ function homeView(){
     :other?doneCard(other.f===0?'started on another device':'played on another device',other.n||DAILY_N,[...(other.g||'').padEnd((other.n||DAILY_N)**2,'0')].map(x=>x==='1'),other.s||0,other.c||0,other.f===0?'You started it on another device with this account. One try per account.':'You played it on another device with this account.')
     :`<div class="hcard ac"><span class="hm">#${dayNumber(key)} · ${date}</span><span class="ht">Today's grid</span><span class="hs">${d?'You started it: tap a square to continue.':'Compete with everyone: the same grid, one try. Tap a square to start.'}</span>${dailyBoard(d&&d.S)}</div>`;
   return `<section class="home">
-    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER?'':'<button class="ghost" id="chname">Change</button>'}
+    <div class="userline"><span class="pin" style="background:var(--sea)"></span>Playing as ${esc(setup.user)}${USER||AUTH_OK?'':'<button class="ghost" id="chname">Change</button>'}
       ${AUTH_OK?(USER?'':`<span class="uright"><button class="ghost" id="signin">Sign in to sync stats</button>`):''}${AUTH_OK&&!USER?'':'<span class="uright">'}${menuBtn()}</span></div>
     ${daily}
     ${TEST?`<div class="testbar"><span>Test mode${TESTDAY?' · day '+TESTDAY:''}</span><button class="ghost" id="dreset">Test: reset today's grid</button>
@@ -1675,6 +1678,7 @@ function bind(){
   if($('backsetup'))$('backsetup').onclick=()=>{askingPlayers=false;render()};
   app.querySelectorAll('[data-pn]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'){const nx=document.getElementById('pname'+(+inp.dataset.pn+1));if(nx)nx.focus();else confirmPlayers()}});
   if($('uname')){const u=$('uname');setTimeout(()=>u.focus(),30);u.onkeydown=e=>{if(e.key==='Enter')saveUser(u.value)};$('savename').onclick=()=>saveUser(u.value)}
+  if($('guest'))$('guest').onclick=()=>saveUser('Guest');
   if($('chname'))$('chname').onclick=()=>{editingUser=true;render()};
   if($('gsignin'))$('gsignin').onclick=signIn;
   if($('mystats'))$('mystats').onclick=()=>openStats(USER?USER.uid:null);
