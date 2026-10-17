@@ -681,7 +681,8 @@ function msToNextDay(){const p=madridParts(now());return (24*3600-(+p.hour*3600+
 // the same seed for everyone on a given day; step on until the seed gives a grid that can be completed
 function dailySeed(key){let h=2166136261;for(const ch of 'borderline-daily-'+key){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return h%7962624}
 function loadDaily(){try{const d=JSON.parse(localStorage.getItem('bl-daily')||'null');return d&&d.date===todayKey()?d:null}catch(e){return null}}
-function saveDaily(){if(S&&S.archive){saveArchGame(S);if(S.over)recordArchive(S);return}
+function saveDaily(){if(S&&S.dayof)return; // a grid played on its day, opened from the archive only to look at it
+  if(S&&S.archive){saveArchGame(S);if(S.over)recordArchive(S);return}
   if(S&&S.daily)try{localStorage.setItem('bl-daily',JSON.stringify({date:S.daily,S}))}catch(e){}
   if(S&&S.daily&&S.over)recordDaily(S)}
 /* ---- daily stats: one entry per played day {date:{s:score,c:squares,n:size}}, kept on the device
@@ -831,6 +832,8 @@ function recordArchive(s){if(!USER||!db||TESTDAY||archUp.has(s.daily))return;
   archUp.add(s.daily);const full={...dailyEntry(s,1),j:JSON.stringify(s)};
   db.ref('users/'+USER.uid+'/archive/'+s.daily).transaction(cur=>!cur||!cur.d||cur.d===ME?full:undefined)
     .then(x=>{if(x.committed&&ARCH_REMOTE)ARCH_REMOTE[s.daily]=full}).catch(()=>archUp.delete(s.daily))}
+// the day's own try (from the daily stats: this device's or the account's): an archive grid you played on its day
+const onDay=k=>loadHist()[k]||null;
 function archDates(){const out=[],end=Date.parse(todayKey()+'T12:00Z');let d=Date.parse(DAILY_FIRST+'T12:00Z');
   while(d<end){out.push(new Date(d).toISOString().slice(0,10));d+=864e5}return out.reverse()}
 function openArchive(){if(screen!=='archive')archBack=screen;screen='archive';ui.reveal=-1;if(USER)syncArch();render();window.scrollTo(0,0)}
@@ -840,14 +843,17 @@ function archiveView(){const a=loadArch(),rem=ARCH_REMOTE||{};
     let st,sq='';
     if(g&&g.over){st=`<span class="as done">${g.players[0].score} pts</span>`;
       sq=`<span class="dsq" style="grid-template-columns:repeat(${g.n},1fr)" aria-hidden="true">${g.cells.map(c=>`<i class="${c.o>=0?'on':''}"></i>`).join('')}</span>`}
+    else if(onDay(k)){const e=onDay(k);st=`<span class="as done">${e.f===0?'Started on its day':e.s+' pts'}</span>`;
+      if(e.g&&e.f!==0)sq=`<span class="dsq" style="grid-template-columns:repeat(${e.n},1fr)" aria-hidden="true">${[...e.g].map(x=>`<i class="${x==='1'?'on':''}"></i>`).join('')}</span>`}
     else if(USER&&r&&otherDevice(r))st=`<span class="as">${r.f===1?'Played on another device':'Started on another device'}</span>`;
     else st=`<span class="as">${g?'In progress':'Play'}</span>`;
     return `<li><button data-arch="${k}"><span class="an">#${n}</span><span class="ad"><b>Grid #${n}</b><small>${date}</small></span>${sq}${st}</button></li>`}).join('');
   return `<section class="panel"><div class="backline"><button class="linkbtn" id="aback">← Back</button><span class="ht">Archive</span></div>
-    <p class="hint">Play the daily grids you missed. One try per grid${USER?' with your account':' on this device'}. Archive games don't count for the daily ranking or your streak.</p>
+    <p class="hint">Play the daily grids you missed. Grids you played on their day are already done. One try per grid${USER?' with your account':' on this device'}. Archive games don't count for the daily ranking or your streak.</p>
     ${items?`<ul class="arch">${items}</ul>`:'<p class="hint">No past grids yet. Come back tomorrow.</p>'}</section>`}
 function playArchive(k){const a=loadArch(),r=(ARCH_REMOTE||{})[k];
   if(USER&&r&&otherDevice(r)&&!(a[k]&&a[k].over)){toast(r.f===1?'You played this grid on another device with this account.':'You started this grid on another device with this account. One try per grid.','bad');return}
+  if(!a[k]&&onDay(k)){showOnDay(k);return}
   ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};screen='home';
   if(a[k]){S=a[k];if(!S.over)startTurn();render();window.scrollTo(0,0);return}
   const dg=dailyGrid(k);if(!dg){toast('Could not build this grid.','bad');return}
@@ -861,6 +867,12 @@ function playArchive(k){const a=loadArch(),r=(ARCH_REMOTE||{})[k];
     db.ref('users/'+USER.uid+'/archive/'+k).transaction(cur=>!cur||!cur.d?dailyEntry(mine,0):cur.d===ME?cur:undefined).then(x=>{
       if(!x.committed&&otherDevice(x.snapshot.val())&&S===mine){S=null;const b=loadArch();delete b[k];try{localStorage.setItem('bl-arch',JSON.stringify(b))}catch(e){}
         toast('You already played this grid with this account on another device.','bad');screen='archive';render()}}).catch(()=>{})}}
+// a grid you played on its day: show that game (kept on this device for yesterday, or in the account), never replay it
+function showOnDay(k){const e=onDay(k),open=g=>{if(!g||g.daily!==k){toast(e.f===0?'You started this grid on its day. One try per grid.':`You played this grid on its day: ${e.s} points.`);return}
+    ui={sel:-1,query:'',reveal:-1,toast:null,fresh:-1};screen='home';S={...g,archive:true,dayof:true,over:true};render();window.scrollTo(0,0)};
+  try{const d=JSON.parse(localStorage.getItem('bl-daily')||'null');if(d&&d.date===k&&d.S){open(d.S);return}}catch(x){}
+  if(USER&&db)db.ref('users/'+USER.uid+'/daily/'+k+'/j').once('value').then(v=>{let g=null;try{g=JSON.parse(v.val())}catch(x){}open(g)}).catch(()=>open(null));
+  else open(null)}
 // big or hard grids can take a second to build: show a note first so the screen does not look frozen
 function buildThenStart(){if(setup.n===5||setup.diff!=='normal')toast('Building a grid that can always be completed…');setTimeout(startGame,40)}
 function startGame(){
@@ -1038,7 +1050,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610162330';
+const APP_VERSION='202610171000';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1487,7 +1499,7 @@ function shareView(){const enc=encodeURIComponent;
 function breakdown(p){return `<p class="hint bdline">${p.cells} squares ${p.base} · speed ${p.speed} · lines ${p.lines}×${LINE_BONUS} = ${p.bonus}</p>`}
 function resultsView(){
   if(S.daily){const p=S.players[0],n=S.n,ms=msToNextDay();
-    return `<section class="panel"><span class="label">${S.archive?'Archive · ':''}Daily grid #${S.day}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. ${S.archive?'Archive games don\'t count for the ranking or your streak.':`Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.`}</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">${S.archive?'Back to archive':'Back to menu'}</button></div></section>${lbView(S.archive?S.daily:null)}`}
+    return `<section class="panel"><span class="label">${S.dayof?'':S.archive?'Archive · ':''}Daily grid #${S.day}${S.dayof?' · played on its day':''}</span><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. ${S.dayof?'You played this grid on its day, so it can\'t be played again.':S.archive?'Archive games don\'t count for the ranking or your streak.':`Share it: friends play today's grid with their own one try. Next grid in ${Math.floor(ms/36e5)} h ${Math.floor(ms%36e5/6e4)} min.`}</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="newg" style="flex:1">${S.archive?'Back to archive':'Back to menu'}</button></div></section>${lbView(S.archive?S.daily:null)}`}
   if(S.mode==='solo'){const p=S.players[0];const n=S.n;
     return `<section class="panel"><p class="big">${p.score} points</p>${breakdown(p)}<p class="hint">${p.cells} of ${n*n} squares. ${S.wrong} wrong guess${S.wrong===1?'':'es'}. Share sends your result with a link: friends who open it play this same grid.</p><pre class="sharebox" id="share">${esc(shareText())}</pre><div class="row-btns"><button class="ghost" id="copy">Share</button><button class="primary" id="again" style="flex:1">New grid</button></div><button class="ghost" id="newg">Change settings</button></section>`}
   const ranked=S.players.map((p,i)=>({...p,i})).sort((a,b)=>b.score-a.score||b.cells-a.cells);
