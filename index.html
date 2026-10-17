@@ -835,7 +835,9 @@ function recordArchive(s){if(!USER||!db||TESTDAY||archUp.has(s.daily))return;
 // the day's own try (from the daily stats: this device's or the account's): an archive grid you played on its day
 const onDay=k=>loadHist()[k]||null;
 function archDates(){const out=[],end=Date.parse(todayKey()+'T12:00Z');let d=Date.parse(DAILY_FIRST+'T12:00Z');
-  while(d<end){out.push(new Date(d).toISOString().slice(0,10));d+=864e5}return out.reverse()}
+  while(d<end){out.push(new Date(d).toISOString().slice(0,10));d+=864e5}
+  // today's grid joins the list as soon as you have finished it, so the archive lists every grid you played
+  const t=onDay(todayKey());if(t&&t.f!==0&&!TESTDAY)out.push(todayKey());return out.reverse()}
 function openArchive(){if(screen!=='archive')archBack=screen;screen='archive';ui.reveal=-1;if(USER)syncArch();render();window.scrollTo(0,0)}
 function archiveView(){const a=loadArch(),rem=ARCH_REMOTE||{};
   const items=archDates().map(k=>{const g=a[k],r=rem[k],n=dayNumber(k),
@@ -1050,7 +1052,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610171000';
+const APP_VERSION='202610171030';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
