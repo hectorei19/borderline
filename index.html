@@ -1052,7 +1052,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610171030';
+const APP_VERSION='202610171100';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1334,7 +1334,7 @@ function nameView(){
   if(USER&&NEEDNAME){const first=((USER.displayName||'').trim().split(/\s+/)[0]||'').slice(0,16);
     return `<section class="panel namecard"><p class="big">Choose your name</p>
       <label class="label" for="pickname">Your name in Borderline</label>
-      <input id="pickname" maxlength="16" autocomplete="nickname" placeholder="e.g. Héctor" value="${esc(setup.user||first)}">
+      <input id="pickname" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(setup.user||first)}">
       <p class="hint">It appears in the daily ranking and on your results. Choose carefully: it stays with your account and can't be changed later.</p>
       <button class="primary" id="savepick">Save name</button></section>`}
   const g=AUTH_OK&&!USER;
@@ -1343,7 +1343,7 @@ function nameView(){
     <p class="hint">Your name stays with your account: you join the daily ranking and your stats follow you on every device.</p>
     <div class="orline"><span>or play as a guest</span></div>`:''}
     <label class="label" for="uname">${g?'Guest name':'Your name'}</label>
-    <input id="uname" maxlength="16" autocomplete="nickname" placeholder="e.g. Héctor" value="${esc(setup.user)}">
+    <input id="uname" maxlength="16" autocomplete="nickname" placeholder="Your name" value="${esc(setup.user)}">
     <p class="hint">${g?'Guests don\'t appear in the ranking, and their stats stay on this device.':'Shown on the grid, the scoreboard and the result you share. It stays on this device.'}</p>
     <button class="${g?'ghost':'primary'}" id="savename">${g?'Play as guest':setup.user?'Save name':'Continue'}</button></section>`;
 }
