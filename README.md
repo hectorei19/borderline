@@ -11,16 +11,19 @@ Files:
 ## Daily grids
 
 The daily grids are fixed in advance in `index.html` (`DAILY_FIXED`, one entry per day from 2026-10-15 to 2027-10-15), so adding or changing categories never changes a day's grid. Days not in the list fall back to generating the grid from the date.
-To add more days before the list runs out, open the game in a browser, run this in the console and paste the result into `DAILY_FIXED` (merging `labels` and `days`):
+To add more days before the list runs out, open the game in a browser, run this in the console and paste the result into `DAILY_FIXED` (merging `labels` and `days`). A category never comes back within 3 days and appears at most 45 times a year:
 
 ```js
-const labels=[...DAILY_FIXED.labels],idx=new Map(labels.map((l,i)=>[l,i])),days={};
-const L=k=>{const l=CATS[k].label;if(!idx.has(l)){idx.set(l,labels.length);labels.push(l)}return idx.get(l)};
+const labels=[...DAILY_FIXED.labels],idx=new Map(labels.map((l,i)=>[l,i])),days={},count={},recent=[];
 for(let d=0;d<366;d++){const key=new Date(Date.parse('2027-10-16T12:00Z')+d*864e5).toISOString().slice(0,10);
+  AVOID=new Set(recent.slice(-3).flat());for(const l in count)if(count[l]>=45)AVOID.add(l);
   let seed=dailySeed(key),g=generate(DAILY_N,seed,DAILY_DIFF),k=0;while(!g&&k++<50){seed=(seed+1)%7962624;g=generate(DAILY_N,seed,DAILY_DIFF)}
-  if(g)days[key]=[...g.rows,...g.cols].map(L)}
+  AVOID=null;if(!g)continue;const ls=[...g.rows,...g.cols].map(i=>CATS[i].label);recent.push(ls);ls.forEach(l=>count[l]=(count[l]||0)+1);
+  days[key]=ls.map(l=>{if(!idx.has(l)){idx.set(l,labels.length);labels.push(l)}return idx.get(l)})}
 copy(JSON.stringify({labels,days}))
 ```
+
+How categories are picked: every category has the same chance, then `CATW` (measured weights) holds back the ones that fit with almost anything, and `WILD` halves the chance of the two broadest ("Drives on the left", "Independence from the UK"). The weights only apply up to 4 × 4.
 
 ## Credits
 
