@@ -1087,7 +1087,7 @@ function syncHist(){if(!USER||!db)return;const ref=db.ref('users/'+USER.uid+'/da
 const randRoom=()=>[...Array(4)].map(()=>LET[Math.floor(Math.random()*24)]).join('');
 const evId=()=>Math.random().toString(36).slice(2,9);
 function gridFor(n,seed,diff){const k=n+':'+seed+':'+(diff||'normal');if(!ansCache[k])ansCache[k]=generate(n,seed,diff);return ansCache[k]}
-const APP_VERSION='202610182000';
+const APP_VERSION='202610192200';
 // The room stores the exact rows and columns, so every phone shows the host's grid.
 function roomGrid(r){
   if(r.rows&&r.cols){const k='ids:'+r.rows.join(',')+'|'+r.cols.join(',');
@@ -1578,7 +1578,7 @@ function matches(q){
   return starts.concat(inside).slice(0,8);
 }
 // line icons for the menu (24×24, drawn with the text colour)
-const ICONS={menu:'M4 6h16M4 12h16M4 18h16',help:'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18M12 17v.01M12 13.5a1.5 1.5 0 0 1 1-1.5a2.6 2.6 0 1 0-3-4',
+const ICONS={menu:'M4 6h16M4 12h16M4 18h16',games:'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',help:'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18M12 17v.01M12 13.5a1.5 1.5 0 0 1 1-1.5a2.6 2.6 0 1 0-3-4',
   archive:'M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2M16 3v4M8 3v4M4 11h16',
   stats:'M4 12h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1M10 8h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1M16 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1',
   credits:'M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0M3 6v13M12 6v13M21 6v13',
@@ -1590,7 +1590,7 @@ function drawLayer(){
   let h='';
   // header menu: How to play, Archive, My stats, Credits, sign in/out
   if(ui.menu){const it=(k,label,cls)=>`<button class="mitem${cls?' '+cls:''}" data-menu="${k}">${ico(k)}${label}</button>`;
-    h+=`<div class="menuscrim" id="menuscrim"></div><nav class="menubox" aria-label="Menu" style="top:${Math.round(((m=>m?m.getBoundingClientRect().bottom:54)(document.getElementById('menu')))+4)}px">${it('help','How to play')}${it('archive','Archive')}${it('stats','My stats')}${it('credits','Credits &amp; data sources')}${AUTH_OK?(USER?it('signout','Sign out','out'):it('signin','Sign in with Google','out')):''}</nav>`}
+    h+=`<div class="menuscrim" id="menuscrim"></div><nav class="menubox" aria-label="Menu" style="top:${Math.round(((m=>m?m.getBoundingClientRect().bottom:54)(document.getElementById('menu')))+4)}px">${it('help','How to play')}${it('archive','Archive')}${it('stats','My stats')}${it('credits','Credits &amp; data sources')}${it('games','More games')}${AUTH_OK?(USER?it('signout','Sign out','out'):it('signin','Sign in with Google','out')):''}</nav>`}
   if(S&&!S.over&&ui.sel>=0){
     const n=S.n,i=Math.floor(ui.sel/n),j=ui.sel%n;
     const res=matches(ui.query);
@@ -1683,7 +1683,7 @@ function drawLayer(){
   if(ms){ms.onclick=()=>{ui.menu=false;drawLayer()};
     layer.querySelectorAll('[data-menu]').forEach(b=>b.onclick=()=>{const k=b.dataset.menu;ui.menu=false;
       if(k==='help'){ui.help=true;drawLayer()}else if(k==='credits'){ui.credits=true;drawLayer()}
-      else if(k==='stats')openStats(USER?USER.uid:null);else if(k==='archive')openArchive();
+      else if(k==='stats')openStats(USER?USER.uid:null);else if(k==='games')location.href='https://hectorei19.github.io/geo-games/';else if(k==='archive')openArchive();
       else if(k==='signin'){drawLayer();signIn()}else if(k==='signout'){drawLayer();signOut()}})}
   const hk=document.getElementById('helpok');
   if(hk){const close=()=>{ui.help=false;drawLayer()};hk.onclick=close;document.getElementById('helpscrim').onclick=close}
