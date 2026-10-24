@@ -1,10 +1,13 @@
-# Country Grid
+# Countries (Geomingo)
+
+Part of [Geomingo](https://hectorei19.github.io/geo-games/), daily geography games. The game was called Country Grid (and Borderline before that); the repository, the URL and the saved data keep those names.
 
 Geography grid game: name a country or territory that matches each row and column (250 to choose from). Every grid is checked so it can always be completed, whatever answers are given.
 Today's grid (one 4×4 Normal grid a day for everyone), Solo (unlimited grids), or With friends (online rooms, up to 4 phones) via Firebase Realtime Database.
 
 Files:
-- `index.html` – the whole game (country data, category data and flags included).
+- `index.html` – the whole game (country data, category data and flags included). Its look (colours, fonts, Mingo, the header, the result window) comes from Geomingo's shared files in `../geo-games/brand/` (repository hectorei19/geo-games), so publish that repository first when both change.
+- `version.json` – the version number; change it together with `APP_VERSION` in `index.html` so phones with the game open get the reload notice.
 - `firebase-config.js` – your Firebase web config (paste it in).
 - `database.rules.json` – rules to paste in Firebase → Realtime Database → Rules.
 
@@ -31,5 +34,5 @@ How categories are picked: every category has the same chance, then `CATW` (meas
 - Flag colours (measured, then checked by eye), flag symbols, seas, peaks, memberships, monarchies and sport lists: compiled by hand, correct as of October 2026.
 - Population, capitals, development and economy, politics and history, geography and sport categories: Wikipedia lists (CC BY-SA 4.0), downloaded in October 2026; each list and its original source (UN, UNDP, World Bank, CIA World Factbook, Transparency International...) is named in the game's Credits and in each category's info.
 - Flags: [flag-icons](https://github.com/lipis/flag-icons), MIT License.
-- Fonts: Big Shoulders Display, Barlow Semi Condensed, JetBrains Mono (Google Fonts, SIL Open Font License).
+- Fonts: Fredoka and Nunito (Google Fonts, SIL Open Font License).
 - Online rooms: Firebase Realtime Database.
